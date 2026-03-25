@@ -19,7 +19,6 @@ from slowapi.errors import RateLimitExceeded
 from database import get_db, init_db, User, redis_client
 from tg_logger import setup_logger
 
-
 load_dotenv()
 
 limiter = Limiter(key_func=get_remote_address)
@@ -89,6 +88,22 @@ class EmbedV2Structure(BaseModel):
     color: Optional[str] = "#5865F2"
     blocks: List[EmbedBlock] = []
 
+class NotificationConfig(BaseModel):
+    enabled: bool = False
+    channel_id: str = ""
+    embed_type: str = "v1"
+    content: Optional[str] = ""
+    title: Optional[str] = ""
+    description: Optional[str] = ""
+    color: Optional[str] = "#5865F2"
+    image_url: Optional[str] = ""
+    thumbnail_url: Optional[str] = ""
+    blocks: List[EmbedBlock] = []
+
+class NotificationSettingsModel(BaseModel):
+    welcome: NotificationConfig
+    goodbye: NotificationConfig
+
 @app.on_event("startup")
 async def startup_event():
     await init_db()
@@ -110,15 +125,46 @@ def get_user_from_token(request: Request):
     try: return jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
     except: raise HTTPException(status_code=401, detail="Токен недействителен")
 
-def verify_admin_access(request: Request):
+async def verify_admin_access(request: Request, db: AsyncSession):
     payload = get_user_from_token(request)
-    if payload.get("role") not in ["admin", "superadmin"]: raise HTTPException(status_code=403, detail="Нет прав доступа")
-    return payload
+    user_id = int(payload["sub"])
+    async with db.begin():
+        result = await db.execute(select(User).where(User.id == user_id))
+        db_user = result.scalars().first()
+        if not db_user or db_user.role not in ["admin", "superadmin"]:
+            raise HTTPException(status_code=403, detail="Нет прав доступа")
 
-def verify_superadmin_access(request: Request):
+        payload["role"] = db_user.role
+        payload["username"] = db_user.username
+        payload["avatar"] = db_user.avatar_hash
+        return payload
+
+async def verify_superadmin_access(request: Request, db: AsyncSession):
     payload = get_user_from_token(request)
-    if payload.get("role") != "superadmin": raise HTTPException(status_code=403, detail="Требуются права Главного Админа")
-    return payload
+    user_id = int(payload["sub"])
+    async with db.begin():
+        result = await db.execute(select(User).where(User.id == user_id))
+        db_user = result.scalars().first()
+        if not db_user or db_user.role != "superadmin":
+            raise HTTPException(status_code=403, detail="Требуются права Главного Админа")
+        
+        payload["role"] = db_user.role
+        payload["username"] = db_user.username
+        payload["avatar"] = db_user.avatar_hash
+        return payload
+
+async def verify_support_access(request: Request, db: AsyncSession):
+    payload = get_user_from_token(request)
+    user_id = int(payload["sub"])
+    async with db.begin():
+        result = await db.execute(select(User).where(User.id == user_id))
+        db_user = result.scalars().first()
+        if not db_user or db_user.role not in ["support", "admin", "superadmin"]:
+            raise HTTPException(status_code=403, detail="Нет прав доступа")
+        
+        payload["role"] = db_user.role
+        payload["username"] = db_user.username
+        return payload
 
 @app.get("/api/auth/login")
 @limiter.limit("5/minute")
@@ -178,15 +224,15 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
 
 @app.get("/api/admins/list")
 async def get_admins_list(request: Request, db: AsyncSession = Depends(get_db)):
-    verify_superadmin_access(request)
+    await verify_superadmin_access(request, db)
     async with db.begin():
-        stmt = select(User).where(User.role.in_(["admin", "superadmin"]))
+        stmt = select(User).where(User.role.in_(["admin", "superadmin", "support"]))
         result = await db.execute(stmt)
         return {"status": "ok", "data": [{"id": str(u.id), "username": u.username, "avatar": u.avatar_hash, "role": u.role} for u in result.scalars().all()]}
 
 @app.get("/api/users/search")
 async def search_users(request: Request, q: str = "", db: AsyncSession = Depends(get_db)):
-    verify_superadmin_access(request)
+    await verify_superadmin_access(request, db)
     if not q or len(q) < 2: return {"status": "ok", "data": []}
     async with db.begin():
         stmt = select(User).where(User.id == int(q)) if q.isdigit() else select(User).where(User.username.ilike(f"%{q}%"))
@@ -195,7 +241,7 @@ async def search_users(request: Request, q: str = "", db: AsyncSession = Depends
 
 @app.post("/api/users/role")
 async def update_user_role(request: Request, data: RoleUpdate, db: AsyncSession = Depends(get_db)):
-    admin_payload = verify_superadmin_access(request)
+    admin_payload = await verify_superadmin_access(request, db)
     if data.user_id == ADMIN_DISCORD_ID: raise HTTPException(status_code=400, detail="Нельзя изменить роль создателя")
     async with db.begin():
         result = await db.execute(select(User).where(User.id == data.user_id))
@@ -215,8 +261,8 @@ async def logout(request: Request):
 
 @app.post("/api/embed/send")
 @limiter.limit("30/minute") 
-async def send_embed_message(request: Request, payload: EmbedStructure):
-    admin_info = verify_admin_access(request)
+async def send_embed_message(request: Request, payload: EmbedStructure, db: AsyncSession = Depends(get_db)):
+    admin_info = await verify_admin_access(request, db)
     
     bot_payload = payload.dict(exclude_none=True)
 
@@ -233,8 +279,8 @@ async def send_embed_message(request: Request, payload: EmbedStructure):
 
 @app.post("/api/embed/send_v2")
 @limiter.limit("30/minute") 
-async def send_embed_message_v2(request: Request, payload: EmbedV2Structure):
-    admin_info = verify_admin_access(request)
+async def send_embed_message_v2(request: Request, payload: EmbedV2Structure, db: AsyncSession = Depends(get_db)):
+    admin_info = await verify_admin_access(request, db)
     bot_payload = payload.dict(exclude_none=True)
 
     avatar_url = f"https://cdn.discordapp.com/avatars/{admin_info['sub']}/{admin_info['avatar']}.png" if admin_info.get('avatar') else "https://cdn.discordapp.com/embed/avatars/0.png"
@@ -248,27 +294,51 @@ async def send_embed_message_v2(request: Request, payload: EmbedV2Structure):
 
     return {"status": "ok", "message": "Команда V2 отправлена боту"}
 
+@app.get("/api/settings/notifications")
+@limiter.limit("60/minute")
+async def get_notifications(request: Request, db: AsyncSession = Depends(get_db)):
+    await verify_admin_access(request, db)
+    data = await redis_client.get("notification_settings")
+    if data:
+        return {"status": "ok", "data": json.loads(data)}
+
+    default_data = {
+        "welcome": {"enabled": False, "channel_id": "", "embed_type": "v1", "color": "#5865F2", "blocks": []},
+        "goodbye": {"enabled": False, "channel_id": "", "embed_type": "v1", "color": "#ED4245", "blocks": []}
+    }
+    return {"status": "ok", "data": default_data}
+
+@app.post("/api/settings/notifications")
+@limiter.limit("30/minute")
+async def save_notifications(request: Request, payload: NotificationSettingsModel, db: AsyncSession = Depends(get_db)):
+    admin_info = await verify_admin_access(request, db)
+    await redis_client.set("notification_settings", payload.json())
+    logger.warning(f"[ACTION] Админ {admin_info['username']} обновил настройки оповещений (Вход/Выход).")
+    return {"status": "ok"}
+
 @app.get("/api/channels")
 @limiter.limit("60/minute")
-async def get_channels(request: Request):
-    verify_admin_access(request)
+async def get_channels(request: Request, db: AsyncSession = Depends(get_db)):
+    await verify_admin_access(request, db)
     data = await redis_client.get("guild_channels")
     return {"status": "ok", "data": json.loads(data) if data else []}
 
 @app.get("/api/stats")
 @limiter.limit("60/minute")
 async def get_stats(request: Request, db: AsyncSession = Depends(get_db)): 
+    await verify_support_access(request, db)
     try:
         data = await redis_client.get("guild_stats")
         if data:
             stats = json.loads(data)
             async with db.begin():
-                result = await db.execute(select(User).where(User.role.in_(["admin", "superadmin"])))
+                result = await db.execute(select(User).where(User.role.in_(["admin", "superadmin", "support"])))
                 stats["admin_count"] = len(result.scalars().all())
             weekly_data = await redis_client.get("weekly_history")
             stats["weekly"] = json.loads(weekly_data) if weekly_data else []
             return {"status": "ok", "data": stats}
         return {"status": "error", "message": "No data in Redis"}
+    
     except Exception as e: return {"status": "error", "message": str(e)}
 
 @app.get("/api/bot")

@@ -14,9 +14,20 @@ defineEmits(['logout'])
     
     <div class="flex flex-col pr-2">
       <span class="text-gray-100 font-bold text-sm leading-tight">{{ user.username }}</span>
+      
       <span class="font-medium text-xs leading-tight mt-0.5" 
-            :class="user.role === 'superadmin' ? 'text-purple-400' : (user.role === 'admin' ? 'text-blue-400' : 'text-gray-500')">
-        {{ user.role === 'superadmin' ? 'Главный Админ' : (user.role === 'admin' ? 'Администратор' : 'Пользователь') }}
+            :class="{
+              'text-purple-400': user.role === 'superadmin',
+              'text-blue-400': user.role === 'admin',
+              'text-yellow-400': user.role === 'support',
+              'text-gray-500': user.role === 'user'
+            }">
+        {{ 
+          user.role === 'superadmin' ? 'Создатель' : 
+          user.role === 'admin' ? 'Администратор' : 
+          user.role === 'support' ? 'Агент поддержки' : 
+          'Пользователь' 
+        }}
       </span>
     </div>
 

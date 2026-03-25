@@ -12,12 +12,13 @@ const admins = ref<any[]>([])
 const API_URL = import.meta.env.VITE_API_BASE_URL
 
 const isProcessing = ref(false)
-const confirmModal = ref<{ isOpen: boolean, userId: string, username: string, currentRole: string }>({
-  isOpen: false, userId: '', username: '', currentRole: ''
+
+const confirmModal = ref<{ isOpen: boolean, userId: string, username: string, currentRole: string, targetRole: string }>({
+  isOpen: false, userId: '', username: '', currentRole: '', targetRole: 'admin'
 })
 
 const openConfirm = (user: any) => {
-  confirmModal.value = { isOpen: true, userId: user.id, username: user.username, currentRole: user.role }
+  confirmModal.value = { isOpen: true, userId: user.id, username: user.username, currentRole: user.role, targetRole: 'admin' }
 }
 const closeConfirm = () => { if (!isProcessing.value) confirmModal.value.isOpen = false }
 
@@ -34,8 +35,9 @@ const search = async () => {
 
 const executeRoleChange = async () => {
   isProcessing.value = true
-  const { userId, currentRole, username } = confirmModal.value
-  const newRole = currentRole === 'admin' ? 'user' : 'admin'
+  const { userId, currentRole, targetRole, username } = confirmModal.value
+
+  const newRole = ['admin', 'support'].includes(currentRole) ? 'user' : targetRole
   
   try {
     const res = await fetch(`${API_URL}/users/role`, {
@@ -71,7 +73,7 @@ onMounted(loadAdmins)
       <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div>
           <h2 class="text-3xl font-extrabold text-white mb-2">Управление <span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">Ролями</span></h2>
-          <p class="text-gray-400 font-medium">Назначайте администраторов для помощи в управлении панелью.</p>
+          <p class="text-gray-400 font-medium">Назначайте администраторов и агентов для помощи в управлении.</p>
         </div>
         
         <div class="relative w-full md:w-[22rem]">
@@ -100,11 +102,13 @@ onMounted(loadAdmins)
             </div>
           </div>
           
-          <button v-if="u.role !== 'superadmin'" @click="openConfirm(u)" class="px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md" 
-                  :class="u.role === 'admin' ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-purple-600 hover:bg-purple-500 text-white'">
-            {{ u.role === 'admin' ? 'Забрать' : 'Выдать' }}
+          <button v-if="['admin', 'support'].includes(u.role)" @click="openConfirm(u)" class="px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md bg-red-500/10 text-red-400 hover:bg-red-500/20">
+            Забрать
           </button>
-          <span v-else class="text-xs font-bold text-purple-400 bg-purple-500/10 px-3 py-1.5 rounded-lg border border-purple-500/20">Создатель</span>
+          <button v-else-if="u.role === 'user'" @click="openConfirm(u)" class="px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md bg-purple-600 hover:bg-purple-500 text-white">
+            Выдать
+          </button>
+          <span v-else-if="u.role === 'superadmin'" class="text-xs font-bold text-purple-400 bg-purple-500/10 px-3 py-1.5 rounded-lg border border-purple-500/20">Создатель</span>
         </div>
       </div>
     </div>
@@ -112,7 +116,7 @@ onMounted(loadAdmins)
     <div class="bg-gray-900/60 backdrop-blur-md border border-gray-800 rounded-3xl p-6 shadow-lg">
       <div class="flex items-center gap-3 mb-6">
         <div class="w-2 h-8 bg-indigo-500 rounded-full"></div>
-        <h3 class="text-xl font-bold text-white">Текущие администраторы</h3>
+        <h3 class="text-xl font-bold text-white">Текущий персонал</h3>
       </div>
       
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -122,9 +126,21 @@ onMounted(loadAdmins)
               <div v-if="u.role === 'superadmin'" class="absolute inset-0 bg-purple-500 rounded-full blur-md opacity-30"></div>
               <img :src="getAvatarUrl(u.id, u.avatar, 64)" class="relative w-14 h-14 rounded-full border-2 border-gray-700 group-hover:border-indigo-500/50 transition-colors object-cover">
             </div>
-            <div class="flex flex-col">
+            
+            <div class="flex flex-col gap-1.5">
               <span class="font-bold text-gray-100">{{ u.username }}</span>
-              <span class="text-xs font-semibold mt-0.5" :class="u.role === 'superadmin' ? 'text-purple-400' : 'text-blue-400'">{{ u.role === 'superadmin' ? 'Главный Админ' : 'Администратор' }}</span>
+              
+              <span v-if="u.role === 'superadmin'" class="bg-gradient-to-r from-pink-500 to-purple-500 text-white text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-md shadow-lg flex items-center gap-1 w-max">
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2l1.65 3.35L15 6l-2.5 2.5.6 3.5L10 10.5 6.9 12l.6-3.5L5 6l3.35-.65L10 2z" clip-rule="evenodd" /></svg>
+                Создатель
+              </span>
+              <span v-else-if="u.role === 'admin'" class="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-md w-max">
+                Администратор
+              </span>
+              <span v-else-if="u.role === 'support'" class="bg-yellow-500/20 text-yellow-500 border border-yellow-500/30 text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-md w-max flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                Агент поддержки
+              </span>
             </div>
           </div>
           
@@ -138,11 +154,29 @@ onMounted(loadAdmins)
     <ConfirmModal 
       :isOpen="confirmModal.isOpen"
       :isProcessing="isProcessing"
-      :type="confirmModal.currentRole === 'admin' ? 'danger' : 'primary'"
+      :type="['admin', 'support'].includes(confirmModal.currentRole) ? 'danger' : 'primary'"
       @confirm="executeRoleChange"
       @cancel="closeConfirm"
     >
-      Вы уверены, что хотите <strong :class="confirmModal.currentRole === 'admin' ? 'text-red-400' : 'text-green-400'">{{ confirmModal.currentRole === 'admin' ? 'ЗАБРАТЬ' : 'ВЫДАТЬ' }}</strong> права администратора пользователю <span class="text-purple-400 font-bold">{{ confirmModal.username }}</span>?
+      <div v-if="['admin', 'support'].includes(confirmModal.currentRole)">
+        Вы уверены, что хотите <strong class="text-red-400">ЗАБРАТЬ</strong> права у пользователя <span class="text-purple-400 font-bold">{{ confirmModal.username }}</span>?
+      </div>
+      
+      <div v-else class="flex flex-col gap-4 text-left">
+        <div class="text-center text-lg">
+          Вы собираетесь <strong class="text-purple-400">ВЫДАТЬ ПРАВА</strong> пользователю <span class="font-bold">{{ confirmModal.username }}</span>.
+        </div>
+        <div class="mt-2">
+          <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Выберите уровень доступа</label>
+          <div class="relative">
+            <select v-model="confirmModal.targetRole" class="w-full bg-gray-900 border border-gray-700 text-white px-4 py-3 rounded-xl focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all outline-none appearance-none cursor-pointer">
+              <option value="admin">Администратор (Полный доступ к панели)</option>
+              <option value="support">Агент поддержки (Доступ только к обращениям)</option>
+            </select>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-gray-400 absolute right-4 top-3.5 pointer-events-none"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+          </div>
+        </div>
+      </div>
     </ConfirmModal>
     
   </div>
