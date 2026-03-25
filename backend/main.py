@@ -2,7 +2,9 @@ import os
 import uvicorn
 import aiohttp
 import jwt
+import json
 
+from pydantic import BaseModel
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,14 +46,39 @@ app.add_middleware(
 CLIENT_ID = os.getenv("DISCORD_CLIENT_ID")
 CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI") 
-JWT_SECRET = os.getenv("JWT_SECRET", "super_secret_local_key_123")
+JWT_SECRET = os.getenv("JWT_SECRET")
+ADMIN_DISCORD_ID = int(os.getenv("ADMIN_DISCORD_ID", 0))
 TOKEN_URL = "https://discord.com/api/oauth2/token"
 API_BASE_URL = "https://discord.com/api/v10"
+
+BOT_INFO = {
+    "id": None,
+    "username": "Загрузка...",
+    "avatar": None
+}
+
+class RoleUpdate(BaseModel):
+    user_id: int
+    role: str
 
 @app.on_event("startup")
 async def startup_event():
     await init_db()
-    logger.info("Бэкенд запущен, БД проверена")
+    logger.info("Бэкенд запущен, БД проверена.")
+
+    bot_token = os.getenv("DISCORD_BOT_TOKEN")
+    if bot_token:
+        async with aiohttp.ClientSession() as session:
+            headers = {"Authorization": f"Bot {bot_token}"}
+            async with session.get(f"{API_BASE_URL}/users/@me", headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    BOT_INFO["id"] = data["id"]
+                    BOT_INFO["username"] = data["username"]
+                    BOT_INFO["avatar"] = data.get("avatar")
+                    logger.info(f"Данные бота успешно загружены: {BOT_INFO['username']}")
+                else:
+                    logger.warning("Не удалось загрузить данные бота из Discord API")
 
 @app.get("/api/auth/login")
 @limiter.limit("5/minute")
@@ -92,6 +119,9 @@ async def auth_callback(request: Request, code: str, db: AsyncSession = Depends(
             user_info = await response.json()
 
         discord_id = int(user_info['id'])
+
+        current_role = "admin" if discord_id == ADMIN_DISCORD_ID else "user"
+
         async with db.begin():
             result = await db.execute(select(User).where(User.id == discord_id))
             db_user = result.scalars().first()
@@ -99,24 +129,27 @@ async def auth_callback(request: Request, code: str, db: AsyncSession = Depends(
             if db_user:
                 db_user.username = user_info['username']
                 db_user.last_login = datetime.utcnow()
+                if discord_id == ADMIN_DISCORD_ID:
+                    db_user.role = "superadmin"
             else:
                 db_user = User(
-                    id=discord_id,
-                    username=user_info['username'],
-                    discriminator=user_info['discriminator'],
-                    avatar_hash=user_info.get('avatar')
+                    id=discord_id, username=user_info['username'],
+                    discriminator=user_info['discriminator'], avatar_hash=user_info.get('avatar'),
+                    role=current_role
                 )
                 db.add(db_user)
 
     token_payload = {
         "sub": str(db_user.id),
         "username": db_user.username,
+        "avatar": db_user.avatar_hash,
+        "role": db_user.role,
         "exp": datetime.utcnow() + timedelta(days=7) 
     }
     token = jwt.encode(token_payload, JWT_SECRET, algorithm="HS256")
 
     # [ПРОДАКШЕН]: Замени http://localhost:5173 на https://domain.ru
-    response = RedirectResponse(url="http://localhost:5173/dashboard")
+    response = RedirectResponse(url="http://localhost:5173/")
 
     response.set_cookie(
         key="access_token",
@@ -130,16 +163,74 @@ async def auth_callback(request: Request, code: str, db: AsyncSession = Depends(
     return response
 
 @app.get("/api/auth/me")
-async def get_current_user(request: Request):
+async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)): # Добавили доступ к БД
     token = request.cookies.get("access_token")
-    if not token:
+    if not token: 
         raise HTTPException(status_code=401, detail="Не авторизован")
     
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-        return {"id": payload["sub"], "username": payload["username"]}
-    except:
-        raise HTTPException(status_code=401, detail="Токен недействителен или просрочен")
+        user_id = int(payload["sub"])
+
+        async with db.begin():
+            result = await db.execute(select(User).where(User.id == user_id))
+            db_user = result.scalars().first()
+            
+            if not db_user:
+                raise HTTPException(status_code=401, detail="Пользователь не найден")
+                
+            return {
+                "id": str(db_user.id), 
+                "username": db_user.username, 
+                "avatar": db_user.avatar_hash,
+                "role": db_user.role
+            }
+    except: 
+        raise HTTPException(status_code=401, detail="Токен недействителен")
+
+def verify_superadmin(request: Request):
+    token = request.cookies.get("access_token")
+    if not token: raise HTTPException(status_code=401)
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        if payload.get("role") != "superadmin": raise HTTPException(status_code=403, detail="Нет прав")
+        return payload
+    except: raise HTTPException(status_code=401)
+
+@app.get("/api/admins/list")
+async def get_admins_list(request: Request, db: AsyncSession = Depends(get_db)):
+    verify_superadmin(request)
+    async with db.begin():
+        stmt = select(User).where(User.role.in_(["admin", "superadmin"]))
+        result = await db.execute(stmt)
+        users = result.scalars().all()
+        return {"status": "ok", "data": [{"id": str(u.id), "username": u.username, "avatar": u.avatar_hash, "role": u.role} for u in users]}
+
+@app.get("/api/users/search")
+async def search_users(request: Request, q: str = "", db: AsyncSession = Depends(get_db)):
+    verify_superadmin(request)
+    if not q or len(q) < 2: return {"status": "ok", "data": []}
+    async with db.begin():
+        if q.isdigit():
+            stmt = select(User).where(User.id == int(q))
+        else:
+            stmt = select(User).where(User.username.ilike(f"%{q}%"))
+        result = await db.execute(stmt)
+        users = result.scalars().all()
+        return {"status": "ok", "data": [{"id": str(u.id), "username": u.username, "avatar": u.avatar_hash, "role": u.role} for u in users]}
+
+@app.post("/api/users/role")
+async def update_user_role(request: Request, data: RoleUpdate, db: AsyncSession = Depends(get_db)):
+    verify_superadmin(request)
+    if data.user_id == ADMIN_DISCORD_ID:
+        raise HTTPException(status_code=400, detail="Нельзя изменить роль создателя")
+        
+    async with db.begin():
+        result = await db.execute(select(User).where(User.id == data.user_id))
+        db_user = result.scalars().first()
+        if not db_user: raise HTTPException(status_code=404, detail="Пользователь не найден")
+        db_user.role = data.role
+    return {"status": "ok"}
 
 @app.post("/api/auth/logout")
 async def logout(request: Request):
@@ -150,17 +241,29 @@ async def logout(request: Request):
 
 @app.get("/api/stats")
 @limiter.limit("60/minute")
-async def get_server_stats(request: Request):
-    token = request.cookies.get("access_token")
-    if not token:
-        raise HTTPException(status_code=401, detail="Сначала войдите в систему")
+async def get_stats(request: Request, db: AsyncSession = Depends(get_db)): 
+    try:
+        data = await redis_client.get("guild_stats")
+        if data:
+            stats = json.loads(data)
+            
+            async with db.begin():
+                result = await db.execute(select(User).where(User.role.in_(["admin", "superadmin"])))
+                admins = result.scalars().all()
+                stats["admin_count"] = len(admins)
 
-    stats_json = await redis_client.get("guild_stats")
-    if not stats_json:
-        return {"status": "error", "data": {"name": "N/A", "member_count": 0}}
+            weekly_data = await redis_client.get("weekly_history")
+            stats["weekly"] = json.loads(weekly_data) if weekly_data else []
+                
+            return {"status": "ok", "data": stats}
+        return {"status": "error", "message": "No data in Redis"}
     
-    import json
-    return {"status": "ok", "data": json.loads(stats_json)}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/bot")
+async def get_bot_info():
+    return {"status": "ok", "data": BOT_INFO}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="localhost", port=8000)

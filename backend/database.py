@@ -38,6 +38,7 @@ class User(Base):
     username = Column(String, nullable=False)
     discriminator = Column(String, nullable=False)
     avatar_hash = Column(String, nullable=True)
+    role = Column(String, default="user")
     first_login = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, default=datetime.utcnow)
 

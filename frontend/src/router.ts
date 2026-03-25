@@ -1,21 +1,18 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Login from './views/Login.vue'
+import Home from './views/Home.vue'
 import Dashboard from './views/Dashboard.vue'
+import AdminStats from './views/AdminStats.vue'
+import AdminUsers from './views/AdminUsers.vue'
 
 const routes = [
-	{
-		path: '/',
-		redirect: '/login',
-	},
-	{
-		path: '/login',
-		name: 'Login',
-		component: Login,
-	},
+	{ path: '/', name: 'Home', component: Home },
 	{
 		path: '/dashboard',
-		name: 'Dashboard',
 		component: Dashboard,
+		children: [
+			{ path: '', name: 'AdminStats', component: AdminStats },
+			{ path: 'admins', name: 'AdminUsers', component: AdminUsers },
+		],
 	},
 ]
 
