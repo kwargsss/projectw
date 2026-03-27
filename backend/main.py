@@ -3,11 +3,12 @@ import uvicorn
 import aiohttp
 import jwt
 import json
+import asyncio
 
 from pydantic import BaseModel
 from typing import Optional, List
-from fastapi import FastAPI, Depends, HTTPException, Request
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi import FastAPI, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -18,6 +19,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from database import get_db, init_db, User, redis_client
 from tg_logger import setup_logger
+
 
 load_dotenv()
 
@@ -165,7 +167,126 @@ async def verify_support_access(request: Request, db: AsyncSession):
         
         payload["role"] = db_user.role
         payload["username"] = db_user.username
+        payload["avatar"] = db_user.avatar_hash
         return payload
+
+class TicketConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[str, List[WebSocket]] = {}
+
+    async def connect(self, websocket: WebSocket, ticket_id: str):
+        await websocket.accept()
+        if ticket_id not in self.active_connections:
+            self.active_connections[ticket_id] = []
+        self.active_connections[ticket_id].append(websocket)
+
+    def disconnect(self, websocket: WebSocket, ticket_id: str):
+        if ticket_id in self.active_connections:
+            self.active_connections[ticket_id].remove(websocket)
+
+    async def broadcast(self, ticket_id: str, message: dict):
+        if ticket_id in self.active_connections:
+            for connection in self.active_connections[ticket_id]:
+                await connection.send_json(message)
+
+ticket_manager = TicketConnectionManager()
+
+@app.get("/api/tickets")
+async def get_all_tickets(request: Request, db: AsyncSession = Depends(get_db)):
+    await verify_support_access(request, db)
+    
+    ticket_keys = await redis_client.keys("ticket:*")
+    tickets = []
+    
+    for key in ticket_keys:
+        try:
+            key_type = await redis_client.type(key)
+
+            if key_type in [b'hash', 'hash']:
+                data = await redis_client.hgetall(key)
+                if data:
+                    tickets.append(data)
+            else:
+                logger.warning(f"[Redis] Пропущен ключ {key}, так как его тип {key_type} (ожидался hash).")
+        except Exception as e:
+            logger.error(f"[Redis] Ошибка при чтении тикета {key}: {e}")
+            continue
+
+    def get_sort_key(x):
+        try:
+            return int(x.get("created_at", 0))
+        except (ValueError, TypeError):
+            return 0
+
+    tickets.sort(key=get_sort_key, reverse=True)
+    return {"status": "ok", "data": tickets}
+
+@app.post("/api/tickets/{ticket_id}/action")
+async def manage_ticket_action(ticket_id: str, action: str, request: Request, db: AsyncSession = Depends(get_db)):
+    user_info = await verify_support_access(request, db)
+
+    if action == "force_delete":
+        await redis_client.delete(f"ticket:{ticket_id}")
+        await redis_client.delete(f"transcript:{ticket_id}")
+        return {"status": "ok", "message": "Архив безвозвратно удален"}
+    
+    payload = {
+        "action": action,
+        "ticket_id": ticket_id,
+        "admin_id": user_info["sub"],
+        "admin_name": user_info["username"]
+    }
+    await redis_client.publish("web_ticket_controls", json.dumps(payload))
+    return {"status": "ok", "message": f"Команда {action} отправлена"}
+
+@app.get("/api/tickets/{ticket_id}/transcript")
+async def get_ticket_transcript(ticket_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    await verify_support_access(request, db)
+    transcript = await redis_client.get(f"transcript:{ticket_id}")
+    if transcript:
+        html_content = transcript.decode('utf-8') if isinstance(transcript, bytes) else transcript
+        return HTMLResponse(content=html_content)
+    return HTMLResponse(content="<div style='color: white; font-family: sans-serif; text-align: center; padding-top: 50px;'><h2>Транскрипт не найден</h2><p>Возможно, это старый тикет, удаленный до обновления.</p></div>", status_code=404)
+
+@app.post("/api/tickets/{ticket_id}/message")
+async def send_ticket_message(ticket_id: str, request: Request, payload: dict, db: AsyncSession = Depends(get_db)):
+    user_info = await verify_support_access(request, db)
+    
+    avatar_url = f"https://cdn.discordapp.com/avatars/{user_info['sub']}/{user_info['avatar']}.png" if user_info.get('avatar') else "https://cdn.discordapp.com/embed/avatars/0.png"
+    
+    msg_data = {
+        "action": "send_message",
+        "ticket_id": ticket_id,
+        "content": payload.get("content"),
+        "author_name": user_info["username"],
+        "author_avatar": avatar_url
+    }
+    
+    await redis_client.publish("web_ticket_controls", json.dumps(msg_data))
+    return {"status": "ok"}
+
+@app.websocket("/api/ws/tickets/{ticket_id}")
+async def websocket_ticket_chat(websocket: WebSocket, ticket_id: str):
+    await ticket_manager.connect(websocket, ticket_id)
+    
+    pubsub = redis_client.pubsub()
+    await pubsub.subscribe(f"ticket_chat:{ticket_id}")
+    
+    try:
+        while True:
+            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+            if message:
+                data = json.loads(message["data"])
+                await websocket.send_json(data)
+            await asyncio.sleep(0.1)
+
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
+            except asyncio.TimeoutError:
+                pass
+    except WebSocketDisconnect:
+        ticket_manager.disconnect(websocket, ticket_id)
+        await pubsub.unsubscribe(f"ticket_chat:{ticket_id}")
 
 @app.get("/api/auth/login")
 @limiter.limit("5/minute")

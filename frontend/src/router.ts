@@ -7,6 +7,7 @@ import EmbedBuilder from './views/EmbedBuilder.vue'
 import EmbedBuilderV2 from './views/EmbedBuilderV2.vue'
 import Notifications from './views/Notifications.vue'
 import Tickets from './views/Tickets.vue'
+import TicketChat from './views/TicketChat.vue'
 
 const routes = [
 	{ path: '/', name: 'Home', component: Home },
@@ -42,7 +43,12 @@ const routes = [
 			{ 
 				path: 'tickets',
 				name: 'Tickets', 
-				component: Tickets 
+				component: Tickets,
+			},
+			{ 
+				path: 'tickets/:type/:id',
+				name: 'TicketChat', 
+				component: TicketChat,
 			},
 		],
 	},

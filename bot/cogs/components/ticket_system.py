@@ -2,9 +2,9 @@ import os
 import disnake
 import io
 import chat_exporter
+import json
 
 from disnake.ext import commands
-
 
 class TicketControlView(disnake.ui.View):
     def __init__(self, is_closed: bool = False):
@@ -144,6 +144,7 @@ class TicketCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.views_added = False
+        self.bot.loop.create_task(self.web_control_listener())
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -153,34 +154,113 @@ class TicketCog(commands.Cog):
             self.bot.add_view(TicketControlView(is_closed=True))
             self.views_added = True
 
-    @commands.slash_command()
-    @commands.default_member_permissions(administrator=True)
-    async def setup_tickets(self, inter: disnake.ApplicationCommandInteraction):
-        embed = disnake.Embed(
-            title="🎧 Центр поддержки",
-            description="> Добро пожаловать!\n\nЕсли у вас возникла проблема или вопрос, выберите подходящую категорию в выпадающем меню ниже. Бот автоматически создаст приватный канал для общения с администрацией.",
-            color=0x8B5CF6
-        )
-        if inter.guild.icon:
-            embed.set_thumbnail(url=inter.guild.icon.url)
-        embed.set_footer(text="ProjectW • Support System")
-
-        await inter.channel.send(embed=embed, view=TicketCreateView())
-        await inter.response.send_message("✅ Панель тикетов успешно установлена!", ephemeral=True)
-
     @commands.command(name="setup_tickets")
-    async def setup_tickets(self, inter: disnake.ApplicationCommandInteraction):
+    async def setup_tickets_prefix(self, ctx: commands.Context):
         embed = disnake.Embed(
             title="🎧 Центр поддержки",
             description="> Добро пожаловать!\n\nЕсли у вас возникла проблема или вопрос, выберите подходящую категорию в выпадающем меню ниже. Бот автоматически создаст приватный канал для общения с администрацией.",
             color=0x8B5CF6
         )
-        if inter.guild.icon:
-            embed.set_thumbnail(url=inter.guild.icon.url)
+        if ctx.guild.icon:
+            embed.set_thumbnail(url=ctx.guild.icon.url)
         embed.set_footer(text="KwargsssBot • Support System")
 
-        await inter.channel.send(embed=embed, view=TicketCreateView())
-        await inter.response.send_message("✅ Панель тикетов успешно установлена!", ephemeral=True)
+        await ctx.send(embed=embed, view=TicketCreateView())
+        try: await ctx.message.delete()
+        except: pass
+
+    @commands.Cog.listener("on_message")
+    async def ticket_message_sync(self, message: disnake.Message):
+        """Трансляция сообщений из Discord в веб-панель"""
+        if message.author.bot and not message.embeds:
+            return
+
+        ticket_data = await self.bot.redis.hgetall(f"ticket:{message.channel.id}")
+        if not ticket_data: return
+
+        embeds_data = [e.to_dict() for e in message.embeds]
+        
+        payload = {
+            "id": str(message.id),
+            "content": message.content,
+            "author": message.author.display_name,
+            "avatar": message.author.display_avatar.url if message.author.display_avatar else None,
+            "is_bot": message.author.bot,
+            "embeds": embeds_data,
+            "timestamp": message.created_at.timestamp()
+        }
+        await self.bot.redis.publish(f"ticket_chat:{message.channel.id}", json.dumps(payload))
+
+    async def web_control_listener(self):
+        await self.bot.wait_until_ready()
+        pubsub = self.bot.redis.pubsub()
+        await pubsub.subscribe("web_ticket_controls")
+        
+        async for message in pubsub.listen():
+            if message['type'] == 'message':
+                try:
+                    data = json.loads(message['data'])
+                    action = data.get("action")
+                    ticket_id = int(data.get("ticket_id"))
+                    channel = self.bot.get_channel(ticket_id)
+                    
+                    if not channel: continue
+
+                    if action == "send_message":
+                        embed = disnake.Embed(description=data["content"], color=0x8B5CF6)
+                        embed.set_footer(text=f"Сотрудник поддержки: {data['author_name']}", icon_url=data.get("author_avatar"))
+                        embed.timestamp = disnake.utils.utcnow()
+                        await channel.send(embed=embed)
+
+                    elif action == "close":
+                        ticket_data = await self.bot.redis.hgetall(f"ticket:{channel.id}")
+                        creator_id = int(ticket_data.get("creator_id", 0))
+                        if creator_id:
+                            member = channel.guild.get_member(creator_id)
+                            if member: await channel.set_permissions(member, overwrite=None)
+                                
+                        close_embed = disnake.Embed(
+                            title="🔒 Тикет закрыт",
+                            description=f"Работа по данному обращению приостановлена администратором **{data['admin_name']}** (через Web-панель).",
+                            color=0xEF4444
+                        )
+                        await channel.send(embed=close_embed, view=TicketControlView(is_closed=True))
+                        await self.bot.redis.hset(f"ticket:{channel.id}", "status", "closed")
+
+                    elif action == "open":
+                        ticket_data = await self.bot.redis.hgetall(f"ticket:{channel.id}")
+                        creator_id = int(ticket_data.get("creator_id", 0))
+                        if creator_id:
+                            member = channel.guild.get_member(creator_id)
+                            if member: await channel.set_permissions(member, read_messages=True, send_messages=True, attach_files=True)
+                                
+                        open_embed = disnake.Embed(
+                            title="🔓 Тикет возобновлен",
+                            description=f"Администратор **{data['admin_name']}** возобновил работу тикета (через Web-панель).",
+                            color=0x10B981
+                        )
+                        await channel.send(embed=open_embed, view=TicketControlView(is_closed=False))
+                        await self.bot.redis.hset(f"ticket:{channel.id}", "status", "open")
+
+                    elif action == "delete":
+                        transcript = await chat_exporter.export(channel)
+                        await self.bot.redis.set(f"transcript:{channel.id}", transcript)
+                        if transcript:
+                            archive_channel = channel.guild.get_channel(int(os.getenv("ARCHIVE_CHANNEL_ID")))
+                            if archive_channel:
+                                transcript_file = disnake.File(io.BytesIO(transcript.encode()), filename=f"archive-{channel.name}.html")
+                                archive_embed = disnake.Embed(
+                                    title="🗃️ Новый архив тикета",
+                                    description=f"**Канал:** `{channel.name}`\n**Закрыл (Web):** {data['admin_name']}",
+                                    color=0x8B5CF6
+                                )
+                                await archive_channel.send(embed=archive_embed, file=transcript_file)
+                        
+                        await channel.delete()
+                        await self.bot.redis.hset(f"ticket:{channel.id}", "status", "archived")
+
+                except Exception as e:
+                    print(f"[Ticket Web Control Error]: {e}")
 
     @commands.Cog.listener("on_button_click")
     async def ticket_button_handler(self, inter: disnake.MessageInteraction):
@@ -195,9 +275,7 @@ class TicketCog(commands.Cog):
         is_admin = admin_role_id in user_roles
 
         if inter.component.custom_id == "ticket_close":
-            if not is_staff:
-                return await inter.response.send_message("У вас нет прав для закрытия тикета.", ephemeral=True)
-            
+            if not is_staff: return await inter.response.send_message("У вас нет прав для закрытия тикета.", ephemeral=True)
             await inter.response.defer()
             
             creator_id = None
@@ -207,23 +285,15 @@ class TicketCog(commands.Cog):
 
             if creator_id:
                 member = inter.guild.get_member(creator_id)
-                if member:
-                    await inter.channel.set_permissions(member, overwrite=None)
+                if member: await inter.channel.set_permissions(member, overwrite=None)
             
             await inter.edit_original_message(view=TicketControlView(is_closed=True))
- 
-            close_embed = disnake.Embed(
-                title="🔒 Тикет закрыт",
-                description=f"Работа по данному обращению приостановлена агентом поддержки {inter.author.mention}.\nПользователь больше не может писать в этот канал.",
-                color=0xEF4444
-            )
+            close_embed = disnake.Embed(title="🔒 Тикет закрыт", description=f"Работа по данному обращению приостановлена агентом поддержки {inter.author.mention}.\nПользователь больше не может писать в этот канал.", color=0xEF4444)
             await inter.channel.send(embed=close_embed)
             await inter.bot.redis.hset(f"ticket:{inter.channel.id}", "status", "closed")
 
         elif inter.component.custom_id == "ticket_open":
-            if not is_staff:
-                return await inter.response.send_message("У вас нет прав для возобновиления тикета.", ephemeral=True)
-            
+            if not is_staff: return await inter.response.send_message("У вас нет прав для возобновиления тикета.", ephemeral=True)
             await inter.response.defer()
             
             creator_id = None
@@ -233,23 +303,15 @@ class TicketCog(commands.Cog):
 
             if creator_id:
                 member = inter.guild.get_member(creator_id)
-                if member:
-                    await inter.channel.set_permissions(member, read_messages=True, send_messages=True, attach_files=True)
+                if member: await inter.channel.set_permissions(member, read_messages=True, send_messages=True, attach_files=True)
 
             await inter.edit_original_message(view=TicketControlView(is_closed=False))
-
-            open_embed = disnake.Embed(
-                title="🔓 Тикет возобновлен",
-                description=f"Агент {inter.author.mention} отменил закрытие тикета.\nПрава доступа пользователя <@{creator_id}> успешно восстановлены.",
-                color=0x10B981
-            )
+            open_embed = disnake.Embed(title="🔓 Тикет возобновлен", description=f"Агент {inter.author.mention} отменил закрытие тикета.\nПрава доступа пользователя <@{creator_id}> успешно восстановлены.", color=0x10B981)
             await inter.channel.send(embed=open_embed)
             await inter.bot.redis.hset(f"ticket:{inter.channel.id}", "status", "open")
 
         elif inter.component.custom_id == "ticket_delete":
-            if not is_admin:
-                return await inter.response.send_message("Удалять тикеты могут только администраторы.", ephemeral=True)
-            
+            if not is_admin: return await inter.response.send_message("Удалять тикеты могут только администраторы.", ephemeral=True)
             await inter.response.defer()
             
             delete_embed = disnake.Embed(title="⏳ Удаление...", description="Генерация HTML-архива и очистка канала.", color=0xF59E0B)
@@ -257,20 +319,15 @@ class TicketCog(commands.Cog):
 
             transcript = await chat_exporter.export(inter.channel)
             if transcript:
+                await inter.bot.redis.set(f"transcript:{inter.channel.id}", transcript)
                 archive_channel = inter.guild.get_channel(int(os.getenv("ARCHIVE_CHANNEL_ID")))
                 if archive_channel:
                     transcript_file = disnake.File(io.BytesIO(transcript.encode()), filename=f"archive-{inter.channel.name}.html")
-                    
-                    archive_embed = disnake.Embed(
-                        title="🗃️ Новый архив тикета",
-                        description=f"**Канал:** `{inter.channel.name}`\n**Закрыл:** {inter.author.mention}",
-                        color=0x8B5CF6
-                    )
+                    archive_embed = disnake.Embed(title="🗃️ Новый архив тикета", description=f"**Канал:** `{inter.channel.name}`\n**Закрыл:** {inter.author.mention}", color=0x8B5CF6)
                     await archive_channel.send(embed=archive_embed, file=transcript_file)
-
             
             await inter.channel.delete()
-            await inter.bot.redis.delete(f"ticket:{inter.channel.id}")
+            await inter.bot.redis.hset(f"ticket:{inter.channel.id}", "status", "archived")
 
 def setup(bot):
     bot.add_cog(TicketCog(bot))
