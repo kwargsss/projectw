@@ -16,15 +16,18 @@ logger = setup_logger("bot", os.getenv("TG_BOT_TOKEN"), os.getenv("TG_CHAT_ID"))
 redis_client = redis.from_url(
     os.getenv("REDIS_URL"),
     decode_responses=True,
-    health_check_interval=30
+    health_check_interval=30,
+    socket_connect_timeout=2
 )
 
-intents = disnake.Intents.default()
-intents.members = True          
-intents.presences = True        
-intents.message_content = True  
+bot = commands.Bot(
+    command_prefix="!", 
+    intents=disnake.Intents.all(),
+    help_command=None
+)
 
-bot = commands.InteractionBot(intents=intents)
+bot.redis = redis_client
+bot.logger = logger
 
 async def pubsub_listener():
     while True:
@@ -252,11 +255,18 @@ async def send_notification(member: disnake.Member, event_type: str):
 
 @bot.event
 async def on_message(message: disnake.Message):
-    if not message.author.bot: await redis_client.incr("stats_messages_24h")
+    if not message.author.bot: 
+        try:
+            await asyncio.wait_for(redis_client.incr("stats_messages_24h"), timeout=1.0)
+        except: pass
+    await bot.process_commands(message)
 
-@bot.event
-async def on_application_command(inter: disnake.ApplicationCommandInteraction):
-    await redis_client.incr("stats_commands_24h")
+@bot.listen("on_application_command")
+async def stats_command_tracker(inter: disnake.ApplicationCommandInteraction):
+    try:
+        await asyncio.wait_for(redis_client.incr("stats_commands_24h"), timeout=1.0)
+    except Exception:
+        pass
 
 @tasks.loop(seconds=5)
 async def update_stats_cache():
@@ -292,6 +302,13 @@ async def update_stats_cache():
 @bot.event
 async def on_ready():
     logger.info(f"[SYSTEM] Бот успешно запущен как {bot.user}")
+    
+    try:
+        await redis_client.ping()
+        logger.info("[SYSTEM] Успешное подключение к Redis! 🟢")
+    except Exception as e:
+        logger.error(f"[ERROR] REDIS НЕ ОТВЕЧАЕТ: {e} 🔴")
+
     bot.loop.create_task(pubsub_listener())
     bot.loop.create_task(pubsub_v2_listener())
     update_stats_cache.start()
@@ -304,10 +321,23 @@ async def on_member_join(member: disnake.Member):
 async def on_member_remove(member: disnake.Member):
     await send_notification(member, "goodbye")
 
-@bot.slash_command(description="Тестовая команда для проверки графика")
-async def test_graph(inter: disnake.ApplicationCommandInteraction):
-    logger.info(f"[ACTION] Пользователь {inter.author.name} использовал команду /test_graph")
-    await inter.response.send_message("Команда успешно засчитана в реальный график! 🚀", ephemeral=True)
-
 if __name__ == "__main__":
+    base_dir = os.path.dirname(__file__)
+    cogs_dir = os.path.join(base_dir, "cogs")
+    
+    if os.path.exists(cogs_dir):
+        for root, dirs, files in os.walk(cogs_dir):
+            for filename in files:
+                if filename.endswith(".py") and not filename.startswith("__"):
+                    file_path = os.path.join(root, filename)
+                    rel_path = os.path.relpath(file_path, base_dir)
+                    cog_path = rel_path.replace(os.sep, ".")[:-3]
+                    
+                    try:
+                        bot.load_extension(cog_path)
+                    except Exception as e:
+                        logger.error(f"[ERROR] Ошибка при загрузке модуля {cog_path}: {e}")
+    else:
+        logger.warning("[SYSTEM] Папка 'cogs' не найдена. Модули не загружены.")
+
     bot.run(os.getenv("BOT_TOKEN"))

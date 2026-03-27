@@ -1,5 +1,6 @@
 import logging
-import requests
+import asyncio
+import aiohttp
 
 from datetime import datetime
 
@@ -19,6 +20,13 @@ class TelegramBotHandler(logging.Handler):
         super().__init__()
         self.bot_token = bot_token
         self.chat_id = chat_id
+
+    async def _send_async(self, url, payload):
+        try:
+            async with aiohttp.ClientSession() as session:
+                await session.post(url, json=payload, timeout=5)
+        except Exception:
+            pass
 
     def emit(self, record):
         raw_message = record.getMessage()
@@ -62,10 +70,11 @@ class TelegramBotHandler(logging.Handler):
             "parse_mode": "HTML",
             "disable_web_page_preview": True
         }
-        
+
         try:
-            requests.post(url, json=payload, timeout=5)
-        except:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._send_async(url, payload))
+        except RuntimeError:
             pass
 
 def setup_logger(name, tg_token, tg_chat_id, level=logging.INFO):

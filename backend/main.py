@@ -109,6 +109,7 @@ async def startup_event():
     await init_db()
     logger.info("[SYSTEM] Бэкенд запущен, БД проверена.")
     bot_token = os.getenv("DISCORD_BOT_TOKEN")
+
     if bot_token:
         async with aiohttp.ClientSession() as session:
             headers = {"Authorization": f"Bot {bot_token}"}
@@ -263,18 +264,11 @@ async def logout(request: Request):
 @limiter.limit("30/minute") 
 async def send_embed_message(request: Request, payload: EmbedStructure, db: AsyncSession = Depends(get_db)):
     admin_info = await verify_admin_access(request, db)
-    
     bot_payload = payload.dict(exclude_none=True)
-
     avatar_url = f"https://cdn.discordapp.com/avatars/{admin_info['sub']}/{admin_info['avatar']}.png" if admin_info.get('avatar') else "https://cdn.discordapp.com/embed/avatars/0.png"
-    bot_payload['footer'] = {
-        "text": f"Отправлено администратором: {admin_info['username']}",
-        "icon_url": avatar_url
-    }
-
+    bot_payload['footer'] = {"text": f"Отправлено администратором: {admin_info['username']}", "icon_url": avatar_url}
     await redis_client.publish("projectw_embed_commands", json.dumps(bot_payload))
     logger.warning(f"[ACTION] Админ {admin_info['username']} отправил Embed сообщение в канал {payload.channel_id}.")
-
     return {"status": "ok", "message": "Команда отправлена боту"}
 
 @app.post("/api/embed/send_v2")
@@ -282,16 +276,10 @@ async def send_embed_message(request: Request, payload: EmbedStructure, db: Asyn
 async def send_embed_message_v2(request: Request, payload: EmbedV2Structure, db: AsyncSession = Depends(get_db)):
     admin_info = await verify_admin_access(request, db)
     bot_payload = payload.dict(exclude_none=True)
-
     avatar_url = f"https://cdn.discordapp.com/avatars/{admin_info['sub']}/{admin_info['avatar']}.png" if admin_info.get('avatar') else "https://cdn.discordapp.com/embed/avatars/0.png"
-    bot_payload['footer'] = {
-        "text": f"Отправлено администратором: {admin_info['username']}",
-        "icon_url": avatar_url
-    }
-
+    bot_payload['footer'] = {"text": f"Отправлено администратором: {admin_info['username']}", "icon_url": avatar_url}
     await redis_client.publish("projectw_embed_v2_commands", json.dumps(bot_payload))
     logger.warning(f"[ACTION] Админ {admin_info['username']} отправил V2 Embed в канал {payload.channel_id}.")
-
     return {"status": "ok", "message": "Команда V2 отправлена боту"}
 
 @app.get("/api/settings/notifications")
@@ -299,9 +287,7 @@ async def send_embed_message_v2(request: Request, payload: EmbedV2Structure, db:
 async def get_notifications(request: Request, db: AsyncSession = Depends(get_db)):
     await verify_admin_access(request, db)
     data = await redis_client.get("notification_settings")
-    if data:
-        return {"status": "ok", "data": json.loads(data)}
-
+    if data: return {"status": "ok", "data": json.loads(data)}
     default_data = {
         "welcome": {"enabled": False, "channel_id": "", "embed_type": "v1", "color": "#5865F2", "blocks": []},
         "goodbye": {"enabled": False, "channel_id": "", "embed_type": "v1", "color": "#ED4245", "blocks": []}
@@ -338,11 +324,11 @@ async def get_stats(request: Request, db: AsyncSession = Depends(get_db)):
             stats["weekly"] = json.loads(weekly_data) if weekly_data else []
             return {"status": "ok", "data": stats}
         return {"status": "error", "message": "No data in Redis"}
-    
     except Exception as e: return {"status": "error", "message": str(e)}
 
 @app.get("/api/bot")
-async def get_bot_info(): return {"status": "ok", "data": BOT_INFO}
+async def get_bot_info(): 
+    return {"status": "ok", "data": BOT_INFO}
 
 if __name__ == "__main__": 
     uvicorn.run(app, host="localhost", port=8000)

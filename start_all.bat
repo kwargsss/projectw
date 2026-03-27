@@ -4,18 +4,14 @@ echo ===================================================
 echo   Запуск проекта: Discord Бот + Веб-панель
 echo ===================================================
 
-:: Жестко переходим в ту папку, где лежит сам этот файл start.bat
 cd /d "%~dp0"
 
-:: 1. Запуск FastAPI Бэкенда
 echo [1/3] Запускаем FastAPI Бэкенд...
 start "FastAPI Backend" cmd /k "cd backend && uvicorn main:app --reload --port 8000"
 
-:: 2. Запуск Discord Бота
 echo [2/3] Запускаем Discord Бота...
 start "Discord Bot" cmd /k "cd bot && python main.py"
 
-:: 3. Запуск Фронтенда (Vue / Vite)
 echo [3/3] Запускаем Vue Фронтенд...
 start "Vue Frontend" cmd /k "cd frontend && npm run dev"
 
