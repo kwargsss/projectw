@@ -14,12 +14,36 @@ const routes = [
 		path: '/dashboard',
 		component: Dashboard,
 		children: [
-			{ path: '', name: 'AdminStats', component: AdminStats },
-			{ path: 'admins', name: 'AdminUsers', component: AdminUsers },
-			{ path: 'embed', name: 'EmbedBuilder', component: EmbedBuilder },
-			{ path: 'embed_v2', name: 'EmbedBuilderV2', component: EmbedBuilderV2 },
-			{ path: 'notifications', name: 'Notifications', component: Notifications },
-			{ path: 'tickets', name: 'Tickets', component: Tickets },
+			{ 
+				path: '', 
+				name: 'AdminStats', 
+				component: AdminStats 
+			},
+			{ 
+				path: 'admins', 
+				name: 'AdminUsers', 
+				component: AdminUsers 
+			},
+			{ 
+				path: 'embed', 
+				name: 'EmbedBuilder', 
+				component: EmbedBuilder 
+			},
+			{ 
+				path: 'embed_v2', 
+				name: 'EmbedBuilderV2', 
+				component: EmbedBuilderV2 
+			},
+			{
+				path: 'notifications',
+				name: 'Notifications',
+				component: Notifications,
+			},
+			{ 
+				path: 'tickets',
+				name: 'Tickets', 
+				component: Tickets 
+			},
 		],
 	},
 ]

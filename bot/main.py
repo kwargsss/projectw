@@ -170,71 +170,6 @@ async def pubsub_v2_listener():
             logger.error(f"[ERROR] Сбой PubSub V2 Listener: {e}. Переподключение через 5 секунд...")
             await asyncio.sleep(5)
 
-async def ticket_action_listener():
-    while True:
-        try:
-            pubsub = redis_client.pubsub()
-            await pubsub.subscribe("site_ticket_actions", "site_ticket_messages")
-            logger.info("[SYSTEM] Бот начал прослушивание команд тикетов с сайта.")
-
-            async for message in pubsub.listen():
-                if message['type'] == 'message':
-                    data = json.loads(message['data'])
-                    channel_id = int(data['ticket_id'])
-                    channel = bot.get_channel(channel_id) or await bot.fetch_channel(channel_id)
-                    
-                    if not channel: continue
-
-                    if message['channel'] == 'site_ticket_messages':
-                        embed = disnake.Embed(description=data['content'], color=0x8B5CF6)
-                        embed.set_author(name=f"Агент: {data['admin_name']}", icon_url="https://cdn.discordapp.com/embed/avatars/0.png")
-                        embed.set_footer(text="Отправлено с панели управления")
-                        embed.timestamp = datetime.now()
-                        await channel.send(embed=embed)
-
-                    elif message['channel'] == 'site_ticket_actions':
-                        action = data['action']
-                        admin_name = data['admin_name']
-
-                        if action == 'close':
-                            creator_id = None
-                            if channel.topic and "от " in channel.topic:
-                                try: creator_id = int(channel.topic.split("от ")[1])
-                                except: pass
-                            
-                            if creator_id:
-                                member = channel.guild.get_member(creator_id)
-                                if member: await channel.set_permissions(member, overwrite=None)
-                            
-                            embed = disnake.Embed(
-                                title="🔒 Тикет закрыт",
-                                description=f"Работа по данному обращению приостановлена агентом **{admin_name}** (с сайта).\nПользователь больше не может писать в этот канал.",
-                                color=0xEF4444
-                            )
-                            await channel.send(embed=embed)
-                            await redis_client.publish("discord_ticket_updates", json.dumps({"ticket_id": str(channel.id), "event": "closed"}))
-
-                        elif action == 'delete':
-                            await channel.send(embed=disnake.Embed(title="⏳ Удаление...", description=f"Запрошено агентом **{admin_name}** с сайта. Генерация архива...", color=0xF59E0B))
-                            import chat_exporter
-                            try:
-                                transcript = await chat_exporter.export(channel)
-                                if transcript:
-                                    archive_channel = channel.guild.get_channel(int(os.getenv("ARCHIVE_CHANNEL_ID")))
-                                    if archive_channel:
-                                        transcript_file = disnake.File(io.BytesIO(transcript.encode()), filename=f"archive-{channel.name}.html")
-                                        embed = disnake.Embed(title="🗃️ Новый архив тикета", description=f"**Канал:** `{channel.name}`\n**Удалил:** {admin_name} (Сайт)", color=0x8B5CF6)
-                                        await archive_channel.send(embed=embed, file=transcript_file)
-                            except Exception as e:
-                                logger.error(f"[ERROR] chat_exporter: {e}")
-                            
-                            await channel.delete()
-                            await redis_client.publish("discord_ticket_updates", json.dumps({"ticket_id": str(channel.id), "event": "deleted"}))
-                            
-        except Exception as e:
-            logger.error(f"[ERROR] Сбой Ticket Listener: {e}. Переподключение через 5 секунд...")
-            await asyncio.sleep(5)
-
 async def send_notification(member: disnake.Member, event_type: str):
     settings_str = await redis_client.get("notification_settings")
     if not settings_str: 
@@ -326,20 +261,6 @@ async def on_message(message: disnake.Message):
             await asyncio.wait_for(redis_client.incr("stats_messages_24h"), timeout=1.0)
         except: pass
 
-    if message.channel.name.startswith("ticket-"):
-        msg_data = {
-            "ticket_id": str(message.channel.id),
-            "id": str(message.id),
-            "content": message.content,
-            "author": message.author.display_name,
-            "author_avatar": message.author.display_avatar.url if message.author.display_avatar else None,
-            "timestamp": message.created_at.timestamp(),
-            "is_bot": message.author.bot,
-            "embeds": [e.to_dict() for e in message.embeds],
-            "attachments": [a.url for a in message.attachments]
-        }
-        await redis_client.publish("discord_ticket_messages", json.dumps(msg_data))
-
     await bot.process_commands(message)
 
 @bot.listen("on_application_command")
@@ -392,7 +313,6 @@ async def on_ready():
 
     bot.loop.create_task(pubsub_listener())
     bot.loop.create_task(pubsub_v2_listener())
-    bot.loop.create_task(ticket_action_listener())
     update_stats_cache.start()
 
 @bot.event
