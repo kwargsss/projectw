@@ -20,7 +20,6 @@ from slowapi.errors import RateLimitExceeded
 from database import get_db, init_db, User, redis_client
 from tg_logger import setup_logger
 
-
 load_dotenv()
 
 limiter = Limiter(key_func=get_remote_address)
@@ -221,6 +220,18 @@ async def get_all_tickets(request: Request, db: AsyncSession = Depends(get_db)):
     tickets.sort(key=get_sort_key, reverse=True)
     return {"status": "ok", "data": tickets}
 
+# ДОБАВЛЕНО: Эндпоинт для загрузки всей истории сообщений тикета
+@app.get("/api/tickets/{ticket_id}/messages")
+async def get_ticket_messages(ticket_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    await verify_support_access(request, db)
+    try:
+        messages = await redis_client.lrange(f"ticket_messages:{ticket_id}", 0, -1)
+        parsed_messages = [json.loads(m) for m in messages]
+        return {"status": "ok", "data": parsed_messages}
+    except Exception as e:
+        logger.error(f"[ERROR] Ошибка загрузки истории сообщений: {e}")
+        return {"status": "error", "data": []}
+
 @app.post("/api/tickets/{ticket_id}/action")
 async def manage_ticket_action(ticket_id: str, action: str, request: Request, db: AsyncSession = Depends(get_db)):
     user_info = await verify_support_access(request, db)
@@ -228,6 +239,8 @@ async def manage_ticket_action(ticket_id: str, action: str, request: Request, db
     if action == "force_delete":
         await redis_client.delete(f"ticket:{ticket_id}")
         await redis_client.delete(f"transcript:{ticket_id}")
+        # ДОБАВЛЕНО: Очистка истории при жестком удалении
+        await redis_client.delete(f"ticket_messages:{ticket_id}")
         return {"status": "ok", "message": "Архив безвозвратно удален"}
     
     payload = {

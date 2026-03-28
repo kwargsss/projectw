@@ -37,29 +37,52 @@ const scrollToBottom = async () => {
     }
 }
 
+// ДОБАВЛЕНО: Универсальная функция форматирования сообщений (админского ответа)
+const formatMessage = (msg: any) => {
+    // Делаем копию, чтобы не мутировать стейт непредсказуемо
+    const data = { ...msg }
+    if (data.is_bot && data.embeds && data.embeds.length > 0) {
+        const embed = data.embeds[0]
+        if (embed.footer && embed.footer.text && embed.footer.text.startsWith('Сотрудник поддержки:')) {
+            data.author = embed.footer.text.replace('Сотрудник поддержки:', '').trim()
+            data.avatar = embed.footer.icon_url || '/bot-avatar.png'
+            data.is_bot = false
+            data.is_admin_reply = true
+            if (embed.description) data.content = embed.description
+            data.embeds = [] 
+        }
+    }
+    return data
+}
+
+// ДОБАВЛЕНО: Загрузка всей прошлой истории тикета
+const fetchHistory = async () => {
+    try {
+        const res = await fetch(`${API_URL}/tickets/${ticketId}/messages`, { credentials: 'include' })
+        if (res.ok) {
+            const json = await res.json()
+            messages.value = json.data.map(formatMessage)
+            scrollToBottom()
+        }
+    } catch (e) {
+        console.error("Ошибка загрузки истории сообщений:", e)
+    }
+}
+
 const connectWebSocket = () => {
     const wsUrl = API_URL.replace(/^http/, 'ws') + `/ws/tickets/${ticketId}`
     
     ws = new WebSocket(wsUrl)
     
     ws.onmessage = (event) => {
-        const data = JSON.parse(event.data)
+        const data = formatMessage(JSON.parse(event.data))
         
-        if (data.is_bot && data.embeds && data.embeds.length > 0) {
-            const embed = data.embeds[0]
-            if (embed.footer && embed.footer.text && embed.footer.text.startsWith('Сотрудник поддержки:')) {
-                data.author = embed.footer.text.replace('Сотрудник поддержки:', '').trim()
-                data.avatar = embed.footer.icon_url || '/bot-avatar.png'
-                data.is_bot = false
-                data.is_admin_reply = true
-                if (embed.description) data.content = embed.description
-                data.embeds = [] 
-            }
+        // Предотвращение дубликатов (если сообщение уже есть в истории)
+        if (!messages.value.find(m => m.id === data.id && !m.isTemp)) {
+            messages.value = messages.value.filter(m => !m.isTemp)
+            messages.value.push(data)
+            scrollToBottom()
         }
-        
-        messages.value = messages.value.filter(m => !m.isTemp)
-        messages.value.push(data)
-        scrollToBottom()
     }
 
     ws.onclose = () => {
@@ -155,6 +178,8 @@ onMounted(async () => {
     }
 
     if (ticketStatus.value !== 'archived') {
+        // ДОБАВЛЕНО: Сначала загружаем историю, затем подключаем WebSocket
+        await fetchHistory()
         connectWebSocket()
     }
 })
