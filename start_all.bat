@@ -6,13 +6,13 @@ echo ===================================================
 
 cd /d "%~dp0"
 
-echo [1/3] Запускаем FastAPI Бэкенд...
+echo [1/3] Запускаем FastAPI Бэкенд
 start "FastAPI Backend" cmd /k "cd backend && uvicorn main:app --reload --port 8000"
 
-echo [2/3] Запускаем Discord Бота...
+echo [2/3] Запускаем Discord Бота
 start "Discord Bot" cmd /k "cd bot && python main.py"
 
-echo [3/3] Запускаем Vue Фронтенд...
+echo [3/3] Запускаем Vue Фронтенд
 start "Vue Frontend" cmd /k "cd frontend && npm run dev"
 
 echo ===================================================
@@ -21,5 +21,5 @@ echo.
 echo Бэкенд доступен на:  http://localhost:8000
 echo Фронтенд доступен на: http://localhost:5173
 echo ===================================================
-echo Нажми любую клавишу, чтобы закрыть это главное окно...
+echo Нажми любую клавишу, чтобы закрыть это главное окно
 pause > nul
