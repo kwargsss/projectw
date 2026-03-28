@@ -8,7 +8,6 @@ from config import Config
 from utils.permissions import is_admin, is_staff, admin_only
 from ui.ticket_ui import TicketCreateView, TicketControlView
 
-
 class TicketCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -52,7 +51,10 @@ class TicketCog(commands.Cog):
             "is_bot": message.author.bot, "embeds": [e.to_dict() for e in message.embeds],
             "timestamp": message.created_at.timestamp()
         }
-        await self.bot.redis.publish(f"ticket_chat:{message.channel.id}", json.dumps(payload))
+        payload_json = json.dumps(payload)
+        
+        await self.bot.redis.rpush(f"ticket_messages:{message.channel.id}", payload_json)
+        await self.bot.redis.publish(f"ticket_chat:{message.channel.id}", payload_json)
 
     async def _change_ticket_status(self, channel: disnake.TextChannel, status: str, admin_name: str, admin_mention: str = None):
         ticket_data = await self.bot.redis.hgetall(f"ticket:{channel.id}")
@@ -85,6 +87,7 @@ class TicketCog(commands.Cog):
         
         await channel.delete()
         await self.bot.redis.hset(f"ticket:{channel.id}", "status", "archived")
+        await self.bot.redis.delete(f"ticket_messages:{channel.id}")
 
     async def web_control_listener(self):
         await self.bot.wait_until_ready()

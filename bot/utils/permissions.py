@@ -19,28 +19,18 @@ def is_staff(member: disnake.Member) -> bool:
 
 def admin_only():
     async def predicate(ctx_or_inter):
-        author = ctx_or_inter.author
-        if is_admin(author):
+        if is_admin(ctx_or_inter.author):
             return True
-        
-        if isinstance(ctx_or_inter, disnake.Interaction):
-            await ctx_or_inter.response.send_message("❌ У вас нет прав администратора для использования этой команды.", ephemeral=True)
-            return False
-            
-        raise commands.CheckFailure("Требуются права администратора.")
+
+        raise commands.CheckFailure("У вас нет прав администратора для использования этой команды.")
     
     return commands.check(predicate)
 
 def staff_only():
     async def predicate(ctx_or_inter):
-        author = ctx_or_inter.author
-        if is_staff(author):
+        if is_staff(ctx_or_inter.author):
             return True
             
-        if isinstance(ctx_or_inter, disnake.Interaction):
-            await ctx_or_inter.response.send_message("❌ У вас нет прав персонала для использования этой команды.", ephemeral=True)
-            return False
-            
-        raise commands.CheckFailure("Требуются права персонала.")
+        raise commands.CheckFailure("У вас нет прав персонала для использования этой команды.")
     
     return commands.check(predicate)

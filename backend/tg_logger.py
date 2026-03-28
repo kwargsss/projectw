@@ -46,7 +46,7 @@ class TelegramBotHandler(logging.Handler):
                 break
         else:
             if record.levelno >= logging.CRITICAL:
-                category_emoji, category_name = "🆘", "#КРИТИЧЕСКАЯ ОШИБКА"
+                category_emoji, category_name = "🆘", "#КРИТИЧЕСКАЯ_ОШИБКА"
             elif record.levelno >= logging.ERROR:
                 category_emoji, category_name = "❌", "#ОШИБКА"
             elif record.levelno >= logging.WARNING:
