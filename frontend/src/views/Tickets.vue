@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import IconGamepad from '../components/icons/IconGamepad.vue'
+import IconWrench from '../components/icons/IconWrench.vue'
+import IconArchive from '../components/icons/IconArchive.vue'
 
 const router = useRouter()
 const tickets = ref<any[]>([])
@@ -58,19 +61,19 @@ onUnmounted(() => {
         
         <div class="flex gap-2 bg-gray-900/60 p-1.5 rounded-2xl w-max border border-gray-800 shadow-sm backdrop-blur-md">
             <button @click="activeCategory = 'server'" :class="{'bg-purple-600 text-white shadow-md': activeCategory === 'server', 'text-gray-400 hover:text-white hover:bg-gray-800': activeCategory !== 'server'}" class="px-5 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2">
-                🎮 Серверные
+                <IconGamepad class="w-5 h-5" /> Серверные
             </button>
             <button @click="activeCategory = 'tech'" :class="{'bg-purple-600 text-white shadow-md': activeCategory === 'tech', 'text-gray-400 hover:text-white hover:bg-gray-800': activeCategory !== 'tech'}" class="px-5 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2">
-                🛠️ Технические
+                <IconWrench class="w-5 h-5" /> Технические
             </button>
             <button @click="activeCategory = 'archived'" :class="{'bg-gray-700 text-white shadow-md': activeCategory === 'archived', 'text-gray-400 hover:text-white hover:bg-gray-800': activeCategory !== 'archived'}" class="px-5 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2">
-                🗃️ Архив
+                <IconArchive class="w-5 h-5" /> Архив
             </button>
         </div>
 
         <div class="grid gap-4">
             <div v-if="filteredTickets.length === 0" class="text-gray-500 py-16 text-center bg-gray-900/40 rounded-3xl border border-gray-800 border-dashed backdrop-blur-sm flex flex-col items-center">
-                <svg class="w-14 h-14 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+                <IconArchive class="w-14 h-14 mx-auto text-gray-600 mb-4" />
                 <span class="text-lg font-bold">В данной категории пусто</span>
                 <span class="text-sm mt-1">Новые обращения появятся здесь автоматически.</span>
             </div>

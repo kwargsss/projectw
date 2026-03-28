@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { getAvatarUrl } from '../utils/helpers'
+import IconLogout from './icons/IconLogout.vue'
 
 defineProps<{
   user: { id: string, username: string, avatar: string | null, role: string }
@@ -32,7 +33,7 @@ defineEmits(['logout'])
     </div>
 
     <button @click="$emit('logout')" class="flex items-center justify-center w-9 h-9 rounded-full bg-red-900/30 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors border border-red-500/20" title="Выйти">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4 ml-0.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" /></svg>
+      <IconLogout class="w-4 h-4 ml-0.5" />
     </button>
   </div>
 </template>

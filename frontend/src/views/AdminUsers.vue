@@ -4,6 +4,10 @@ import { getAvatarUrl } from '../utils/helpers'
 import { useToast } from '../utils/useToast'
 import ConfirmModal from '../components/ConfirmModal.vue'
 
+import IconSearch from '../components/icons/IconSearch.vue'
+import IconStar from '../components/icons/IconStar.vue'
+import IconChevronDown from '../components/icons/IconChevronDown.vue'
+
 const { showToast } = useToast()
 
 const searchQuery = ref('')
@@ -79,7 +83,7 @@ onMounted(loadAdmins)
         <div class="relative w-full md:w-[22rem]">
           <input v-model="searchQuery" @input="search" type="text" placeholder="Поиск (Ник или ID)..." 
                  class="w-full bg-gray-900/80 border border-gray-700 text-white px-5 py-3 rounded-2xl focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all placeholder-gray-500 shadow-inner">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-gray-400 absolute right-4 top-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+          <IconSearch class="w-5 h-5 text-gray-400 absolute right-4 top-3.5" />
         </div>
       </div>
     </div>
@@ -131,7 +135,7 @@ onMounted(loadAdmins)
               <span class="font-bold text-gray-100">{{ u.username }}</span>
               
               <span v-if="u.role === 'superadmin'" class="bg-gradient-to-r from-pink-500 to-purple-500 text-white text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-md shadow-lg flex items-center gap-1 w-max">
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2l1.65 3.35L15 6l-2.5 2.5.6 3.5L10 10.5 6.9 12l.6-3.5L5 6l3.35-.65L10 2z" clip-rule="evenodd" /></svg>
+                <IconStar class="w-3 h-3" />
                 Создатель
               </span>
               <span v-else-if="u.role === 'admin'" class="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-md w-max">
@@ -173,7 +177,7 @@ onMounted(loadAdmins)
               <option value="admin">Администратор (Полный доступ к панели)</option>
               <option value="support">Агент поддержки (Доступ только к обращениям)</option>
             </select>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-gray-400 absolute right-4 top-3.5 pointer-events-none"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+            <IconChevronDown class="w-5 h-5 text-gray-400 absolute right-4 top-3.5 pointer-events-none" />
           </div>
         </div>
       </div>

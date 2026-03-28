@@ -1,58 +1,57 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Home from './views/Home.vue'
-import Dashboard from './views/Dashboard.vue'
-import AdminStats from './views/AdminStats.vue'
-import AdminUsers from './views/AdminUsers.vue'
-import EmbedBuilder from './views/EmbedBuilder.vue'
-import EmbedBuilderV2 from './views/EmbedBuilderV2.vue'
-import Notifications from './views/Notifications.vue'
-import Tickets from './views/Tickets.vue'
-import TicketChat from './views/TicketChat.vue'
 
 const routes = [
-	{ path: '/', name: 'Home', component: Home },
+	{
+		path: '/',
+		name: 'Home',
+		component: () => import('./views/Home.vue'),
+	},
 	{
 		path: '/dashboard',
-		component: Dashboard,
+		component: () => import('./views/Dashboard.vue'),
 		children: [
-			{ 
-				path: '', 
-				name: 'AdminStats', 
-				component: AdminStats 
+			{
+				path: '',
+				name: 'AdminStats',
+				component: () => import('./views/AdminStats.vue'),
 			},
-			{ 
-				path: 'admins', 
-				name: 'AdminUsers', 
-				component: AdminUsers 
+			{
+				path: 'admins',
+				name: 'AdminUsers',
+				component: () => import('./views/AdminUsers.vue'),
 			},
-			{ 
-				path: 'embed', 
-				name: 'EmbedBuilder', 
-				component: EmbedBuilder 
+			{
+				path: 'embed',
+				name: 'EmbedBuilder',
+				component: () => import('./views/EmbedBuilder.vue'),
 			},
-			{ 
-				path: 'embed_v2', 
-				name: 'EmbedBuilderV2', 
-				component: EmbedBuilderV2 
+			{
+				path: 'embed_v2',
+				name: 'EmbedBuilderV2',
+				component: () => import('./views/EmbedBuilderV2.vue'),
 			},
 			{
 				path: 'notifications',
 				name: 'Notifications',
-				component: Notifications,
+				component: () => import('./views/Notifications.vue'),
 			},
-			{ 
+			{
 				path: 'tickets',
-				name: 'Tickets', 
-				component: Tickets,
+				name: 'Tickets',
+				component: () => import('./views/Tickets.vue'),
 			},
-			{ 
+			{
 				path: 'tickets/:type/:id',
-				name: 'TicketChat', 
-				component: TicketChat,
+				name: 'TicketChat',
+				component: () => import('./views/TicketChat.vue'),
 			},
 		],
 	},
 ]
 
-const router = createRouter({ history: createWebHistory(), routes })
+const router = createRouter({
+	history: createWebHistory(),
+	routes,
+})
+
 export default router

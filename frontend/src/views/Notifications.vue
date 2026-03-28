@@ -4,6 +4,12 @@ import { getAvatarUrl } from '../utils/helpers'
 import { useToast } from '../utils/useToast'
 import UnsavedChangesPanel from '../components/UnsavedChangesPanel.vue'
 
+import IconDocumentText from '../components/icons/IconDocumentText.vue'
+import IconPhotograph from '../components/icons/IconPhotograph.vue'
+import IconLinkAlt from '../components/icons/IconLinkAlt.vue'
+import IconPaperClip from '../components/icons/IconPaperClip.vue'
+import IconTrash from '../components/icons/IconTrash.vue'
+
 const { showToast } = useToast()
 const API_URL = import.meta.env.VITE_API_BASE_URL
 const botInfo = inject('botInfo') as any
@@ -193,20 +199,20 @@ const moveDown = (target: 'welcome' | 'goodbye', index: number) => { if (index <
                 <div class="absolute right-2 top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button @click="moveUp('welcome', index)" class="p-1 text-gray-500 hover:text-white"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg></button>
                   <button @click="moveDown('welcome', index)" class="p-1 text-gray-500 hover:text-white"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg></button>
-                  <button @click="removeBlock('welcome', index)" class="p-1 text-red-500 hover:text-red-400 ml-1"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                  <button @click="removeBlock('welcome', index)" class="p-1 text-red-500 hover:text-red-400 ml-1"><IconTrash class="w-4 h-4" /></button>
                 </div>
 
                 <div v-if="block.type === 'text_display'">
-                  <span class="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2 block">📝 Text Display</span>
+                  <span class="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2 flex items-center gap-1"><IconDocumentText class="w-3 h-3" /> Text Display</span>
                   <textarea v-model="block.content" rows="2" placeholder="Текст (Поддерживает {user}, {server})..." class="w-full bg-gray-900 border border-gray-800 text-white px-3 py-2 rounded-xl focus:border-blue-500 outline-none"></textarea>
                 </div>
                 <div v-else-if="block.type === 'media_gallery'">
-                  <span class="text-[10px] font-bold text-green-500 uppercase tracking-widest mb-2 block">🖼️ Media Gallery</span>
+                  <span class="text-[10px] font-bold text-green-500 uppercase tracking-widest mb-2 flex items-center gap-1"><IconPhotograph class="w-3 h-3" /> Media Gallery</span>
                   <input v-model="block.url" type="text" placeholder="URL изображения..." class="w-full bg-gray-900 border border-gray-800 text-white px-3 py-2 rounded-xl focus:border-green-500 outline-none mb-2">
                 </div>
                 <div v-else-if="block.type === 'separator'" class="py-2 text-center text-xs text-gray-600 font-bold tracking-widest">--- РАЗДЕЛИТЕЛЬ ---</div>
                 <div v-else-if="block.type === 'section'">
-                  <span class="text-[10px] font-bold text-pink-500 uppercase tracking-widest mb-2 block">🔗 Section</span>
+                  <span class="text-[10px] font-bold text-pink-500 uppercase tracking-widest mb-2 flex items-center gap-1"><IconLinkAlt class="w-3 h-3" /> Section</span>
                   <input v-model="block.content" type="text" placeholder="Текст слева..." class="w-full bg-gray-900 border border-gray-800 text-white px-3 py-2 rounded-xl focus:border-pink-500 outline-none mb-2">
                   <div class="flex gap-2">
                     <input v-model="block.button_label" type="text" placeholder="Текст кнопки" class="w-1/3 bg-gray-900 border border-gray-800 text-white px-3 py-2 rounded-xl focus:border-pink-500 outline-none">
@@ -214,17 +220,17 @@ const moveDown = (target: 'welcome' | 'goodbye', index: number) => { if (index <
                   </div>
                 </div>
                 <div v-else-if="block.type === 'file'">
-                  <span class="text-[10px] font-bold text-yellow-500 uppercase tracking-widest mb-2 block">📎 File</span>
+                  <span class="text-[10px] font-bold text-yellow-500 uppercase tracking-widest mb-2 flex items-center gap-1"><IconPaperClip class="w-3 h-3" /> File</span>
                   <input v-model="block.url" type="text" placeholder="URL файла..." class="w-full bg-gray-900 border border-gray-800 text-white px-3 py-2 rounded-xl focus:border-yellow-500 outline-none mb-2">
                 </div>
               </div>
 
               <div class="grid grid-cols-2 md:grid-cols-5 gap-2 mt-4">
-                <button @click="addBlock('welcome', 'text_display')" class="bg-gray-950 border border-gray-800 hover:border-blue-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors">📝 Текст</button>
-                <button @click="addBlock('welcome', 'media_gallery')" class="bg-gray-950 border border-gray-800 hover:border-green-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors">🖼️ Фото</button>
-                <button @click="addBlock('welcome', 'section')" class="bg-gray-950 border border-gray-800 hover:border-pink-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors">🔗 Секция</button>
-                <button @click="addBlock('welcome', 'file')" class="bg-gray-950 border border-gray-800 hover:border-yellow-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors">📎 Файл</button>
-                <button @click="addBlock('welcome', 'separator')" class="bg-gray-950 border border-gray-800 hover:border-gray-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors">➖ Line</button>
+                <button @click="addBlock('welcome', 'text_display')" class="flex items-center justify-center gap-1 bg-gray-950 border border-gray-800 hover:border-blue-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors"><IconDocumentText class="w-4 h-4" /> Текст</button>
+                <button @click="addBlock('welcome', 'media_gallery')" class="flex items-center justify-center gap-1 bg-gray-950 border border-gray-800 hover:border-green-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors"><IconPhotograph class="w-4 h-4" /> Фото</button>
+                <button @click="addBlock('welcome', 'section')" class="flex items-center justify-center gap-1 bg-gray-950 border border-gray-800 hover:border-pink-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors"><IconLinkAlt class="w-4 h-4" /> Секция</button>
+                <button @click="addBlock('welcome', 'file')" class="flex items-center justify-center gap-1 bg-gray-950 border border-gray-800 hover:border-yellow-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors"><IconPaperClip class="w-4 h-4" /> Файл</button>
+                <button @click="addBlock('welcome', 'separator')" class="flex items-center justify-center gap-1 bg-gray-950 border border-gray-800 hover:border-gray-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors">➖ Line</button>
               </div>
             </div>
           </div>
@@ -272,7 +278,7 @@ const moveDown = (target: 'welcome' | 'goodbye', index: number) => { if (index <
                               <a v-if="block.button_label" :href="block.button_url || '#'" class="flex-shrink-0 bg-[#4e5058] px-4 py-1.5 rounded-[4px] text-white text-sm font-medium">{{ block.button_label }}</a>
                             </div>
                             <div v-else-if="block.type === 'file' && block.url" class="bg-[#2b2d31] border border-[#1e1f22] rounded-[8px] p-3 flex items-center gap-3">
-                              <div class="p-2 bg-[#1e1f22] rounded"><svg class="w-6 h-6 text-[#dbdee1]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></div>
+                              <div class="p-2 bg-[#1e1f22] rounded"><IconPaperClip class="w-6 h-6 text-[#dbdee1]" /></div>
                               <div class="flex flex-col"><span class="text-[#00a8fc] text-sm font-medium">{{ block.url.split('/').pop() || 'file' }}</span><span class="text-xs text-[#80848e]">Вложение</span></div>
                             </div>
                           </template>
@@ -346,20 +352,20 @@ const moveDown = (target: 'welcome' | 'goodbye', index: number) => { if (index <
                 <div class="absolute right-2 top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button @click="moveUp('goodbye', index)" class="p-1 text-gray-500 hover:text-white"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg></button>
                   <button @click="moveDown('goodbye', index)" class="p-1 text-gray-500 hover:text-white"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg></button>
-                  <button @click="removeBlock('goodbye', index)" class="p-1 text-red-500 hover:text-red-400 ml-1"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                  <button @click="removeBlock('goodbye', index)" class="p-1 text-red-500 hover:text-red-400 ml-1"><IconTrash class="w-4 h-4" /></button>
                 </div>
 
                 <div v-if="block.type === 'text_display'">
-                  <span class="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2 block">📝 Text Display</span>
+                  <span class="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2 flex items-center gap-1"><IconDocumentText class="w-3 h-3" /> Text Display</span>
                   <textarea v-model="block.content" rows="2" class="w-full bg-gray-900 border border-gray-800 text-white px-3 py-2 rounded-xl focus:border-blue-500 outline-none"></textarea>
                 </div>
                 <div v-else-if="block.type === 'media_gallery'">
-                  <span class="text-[10px] font-bold text-green-500 uppercase tracking-widest mb-2 block">🖼️ Media Gallery</span>
+                  <span class="text-[10px] font-bold text-green-500 uppercase tracking-widest mb-2 flex items-center gap-1"><IconPhotograph class="w-3 h-3" /> Media Gallery</span>
                   <input v-model="block.url" type="text" class="w-full bg-gray-900 border border-gray-800 text-white px-3 py-2 rounded-xl focus:border-green-500 outline-none mb-2">
                 </div>
                 <div v-else-if="block.type === 'separator'" class="py-2 text-center text-xs text-gray-600 font-bold tracking-widest">--- РАЗДЕЛИТЕЛЬ ---</div>
                 <div v-else-if="block.type === 'section'">
-                  <span class="text-[10px] font-bold text-pink-500 uppercase tracking-widest mb-2 block">🔗 Section</span>
+                  <span class="text-[10px] font-bold text-pink-500 uppercase tracking-widest mb-2 flex items-center gap-1"><IconLinkAlt class="w-3 h-3" /> Section</span>
                   <input v-model="block.content" type="text" class="w-full bg-gray-900 border border-gray-800 text-white px-3 py-2 rounded-xl focus:border-pink-500 outline-none mb-2">
                   <div class="flex gap-2">
                     <input v-model="block.button_label" type="text" class="w-1/3 bg-gray-900 border border-gray-800 text-white px-3 py-2 rounded-xl focus:border-pink-500 outline-none">
@@ -367,17 +373,17 @@ const moveDown = (target: 'welcome' | 'goodbye', index: number) => { if (index <
                   </div>
                 </div>
                 <div v-else-if="block.type === 'file'">
-                  <span class="text-[10px] font-bold text-yellow-500 uppercase tracking-widest mb-2 block">📎 File</span>
+                  <span class="text-[10px] font-bold text-yellow-500 uppercase tracking-widest mb-2 flex items-center gap-1"><IconPaperClip class="w-3 h-3" /> File</span>
                   <input v-model="block.url" type="text" class="w-full bg-gray-900 border border-gray-800 text-white px-3 py-2 rounded-xl focus:border-yellow-500 outline-none mb-2">
                 </div>
               </div>
 
               <div class="grid grid-cols-2 md:grid-cols-5 gap-2 mt-4">
-                <button @click="addBlock('goodbye', 'text_display')" class="bg-gray-950 border border-gray-800 hover:border-blue-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors">📝 Текст</button>
-                <button @click="addBlock('goodbye', 'media_gallery')" class="bg-gray-950 border border-gray-800 hover:border-green-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors">🖼️ Фото</button>
-                <button @click="addBlock('goodbye', 'section')" class="bg-gray-950 border border-gray-800 hover:border-pink-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors">🔗 Секция</button>
-                <button @click="addBlock('goodbye', 'file')" class="bg-gray-950 border border-gray-800 hover:border-yellow-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors">📎 Файл</button>
-                <button @click="addBlock('goodbye', 'separator')" class="bg-gray-950 border border-gray-800 hover:border-gray-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors">➖ Line</button>
+                <button @click="addBlock('goodbye', 'text_display')" class="flex items-center justify-center gap-1 bg-gray-950 border border-gray-800 hover:border-blue-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors"><IconDocumentText class="w-4 h-4" /> Текст</button>
+                <button @click="addBlock('goodbye', 'media_gallery')" class="flex items-center justify-center gap-1 bg-gray-950 border border-gray-800 hover:border-green-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors"><IconPhotograph class="w-4 h-4" /> Фото</button>
+                <button @click="addBlock('goodbye', 'section')" class="flex items-center justify-center gap-1 bg-gray-950 border border-gray-800 hover:border-pink-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors"><IconLinkAlt class="w-4 h-4" /> Секция</button>
+                <button @click="addBlock('goodbye', 'file')" class="flex items-center justify-center gap-1 bg-gray-950 border border-gray-800 hover:border-yellow-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors"><IconPaperClip class="w-4 h-4" /> Файл</button>
+                <button @click="addBlock('goodbye', 'separator')" class="flex items-center justify-center gap-1 bg-gray-950 border border-gray-800 hover:border-gray-500 text-gray-400 py-2 rounded-xl text-xs font-bold transition-colors">➖ Line</button>
               </div>
             </div>
           </div>
@@ -425,7 +431,7 @@ const moveDown = (target: 'welcome' | 'goodbye', index: number) => { if (index <
                               <a v-if="block.button_label" :href="block.button_url || '#'" class="flex-shrink-0 bg-[#4e5058] px-4 py-1.5 rounded-[4px] text-white text-sm font-medium">{{ block.button_label }}</a>
                             </div>
                             <div v-else-if="block.type === 'file' && block.url" class="bg-[#2b2d31] border border-[#1e1f22] rounded-[8px] p-3 flex items-center gap-3">
-                              <div class="p-2 bg-[#1e1f22] rounded"><svg class="w-6 h-6 text-[#dbdee1]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></div>
+                              <div class="p-2 bg-[#1e1f22] rounded"><IconPaperClip class="w-6 h-6 text-[#dbdee1]" /></div>
                               <div class="flex flex-col"><span class="text-[#00a8fc] text-sm font-medium">{{ block.url.split('/').pop() || 'file' }}</span><span class="text-xs text-[#80848e]">Вложение</span></div>
                             </div>
                           </template>

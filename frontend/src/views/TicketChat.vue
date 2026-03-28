@@ -3,6 +3,9 @@ import { ref, onMounted, onUnmounted, nextTick, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ConfirmModal from '../components/ConfirmModal.vue'
 
+import IconTrash from '../components/icons/IconTrash.vue'
+import IconPaperAirplane from '../components/icons/IconPaperAirplane.vue'
+
 const route = useRoute()
 const router = useRouter()
 const ticketId = route.params.id as string
@@ -194,12 +197,12 @@ onUnmounted(() => {
                 </button>
                 
                 <button v-if="ticketStatus === 'archived'" @click="showForceDeleteModal = true" class="px-4 py-2 bg-gray-900/80 hover:bg-red-500 text-gray-400 hover:text-white border border-gray-700 hover:border-red-500 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 shadow-sm">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    <IconTrash class="w-4 h-4" />
                     Удалить архив
                 </button>
 
                 <button v-else-if="ticketStatus === 'closed'" @click="showDeleteModal = true" class="px-4 py-2 bg-gray-900/80 hover:bg-red-500 text-gray-400 hover:text-white border border-gray-700 hover:border-red-500 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 shadow-sm">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    <IconTrash class="w-4 h-4" />
                     Удалить тикет
                 </button>
             </div>
@@ -282,7 +285,7 @@ onUnmounted(() => {
                             
                             <button @click="sendMessage" :disabled="!messageInput.trim() || ticketStatus !== 'open'"
                                     class="absolute right-2 p-2 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-800 disabled:text-gray-600 text-white rounded-lg transition-colors cursor-pointer disabled:cursor-not-allowed">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                                <IconPaperAirplane class="w-4 h-4" />
                             </button>
                         </div>
                     </div>

@@ -3,6 +3,12 @@ import { ref, inject, computed, onMounted } from 'vue'
 import { getAvatarUrl } from '../utils/helpers'
 import { useToast } from '../utils/useToast'
 
+import IconTrash from '../components/icons/IconTrash.vue'
+import IconArrowRight from '../components/icons/IconArrowRight.vue'
+import IconChevronDown from '../components/icons/IconChevronDown.vue'
+import IconSpinner from '../components/icons/IconSpinner.vue'
+import IconDocumentText from '../components/icons/IconDocumentText.vue'
+
 const { showToast } = useToast()
 
 const user = inject('user') as any
@@ -13,18 +19,8 @@ const isSending = ref(false)
 const channels = ref<{id: string, name: string}[]>([])
 
 const embed = ref({
-  channel_id: '',
-  content: '',
-  color: '#5865F2',
-  title: '',
-  description: '',
-  url: '',
-  author_name: '',
-  author_icon: '',
-  author_url: '',
-  image_url: '',
-  thumbnail_url: '',
-  fields: [] as { name: string, value: string, inline: boolean }[]
+  channel_id: '', content: '', color: '#5865F2', title: '', description: '', url: '',
+  author_name: '', author_icon: '', author_url: '', image_url: '', thumbnail_url: '', fields: [] as { name: string, value: string, inline: boolean }[]
 })
 
 onMounted(async () => {
@@ -60,8 +56,7 @@ const removeField = (index: number) => embed.value.fields.splice(index, 1)
 
 const clearEmbed = () => {
   embed.value = {
-    channel_id: embed.value.channel_id,
-    content: '', color: '#5865F2', title: '', description: '', url: '',
+    channel_id: embed.value.channel_id, content: '', color: '#5865F2', title: '', description: '', url: '',
     author_name: '', author_icon: '', author_url: '', image_url: '', thumbnail_url: '', fields: []
   }
   showToast('Форма очищена', 'success')
@@ -86,8 +81,7 @@ const sendEmbed = async () => {
       showToast('Embed успешно отправлен боту!', 'success')
       const currentChannel = embed.value.channel_id
       embed.value = {
-        channel_id: currentChannel,
-        content: '', color: '#5865F2', title: '', description: '', url: '',
+        channel_id: currentChannel, content: '', color: '#5865F2', title: '', description: '', url: '',
         author_name: '', author_icon: '', author_url: '', image_url: '', thumbnail_url: '', fields: []
       }
     } else {
@@ -115,7 +109,7 @@ const sendEmbed = async () => {
         </div>
         
         <button @click="clearEmbed" class="relative z-10 bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+          <IconTrash class="w-4 h-4" />
           Очистить
         </button>
       </div>
@@ -132,14 +126,13 @@ const sendEmbed = async () => {
               <p class="text-sm text-gray-400">Модульный конструктор сообщений с блочной структурой.</p>
             </div>
           </div>
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-indigo-400 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+          <IconArrowRight class="w-6 h-6 text-indigo-400 group-hover:translate-x-1 transition-transform" />
         </div>
       </router-link>
 
       <div class="bg-gray-900/60 backdrop-blur-md border border-gray-800 p-6 rounded-3xl shadow-lg space-y-4">
         <h3 class="text-lg font-bold text-purple-400 flex items-center gap-2 mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          Основные данные
+          <IconDocumentText class="w-5 h-5" /> Основные данные
         </h3>
         
         <div>
@@ -149,7 +142,7 @@ const sendEmbed = async () => {
               <option value="" disabled>Выберите канал</option>
               <option v-for="c in channels" :key="c.id" :value="c.id"># {{ c.name }}</option>
             </select>
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-400 absolute right-4 top-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+            <IconChevronDown class="w-5 h-5 text-gray-400 absolute right-4 top-3.5 pointer-events-none" />
           </div>
         </div>
 
@@ -233,7 +226,7 @@ const sendEmbed = async () => {
         <div class="space-y-4">
           <div v-for="(field, index) in embed.fields" :key="index" class="bg-gray-950 border border-gray-800 p-4 rounded-2xl relative group">
             <button @click="removeField(index)" class="absolute top-3 right-3 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              <IconTrash class="w-5 h-5" />
             </button>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3 pr-8">
               <div>
@@ -264,7 +257,6 @@ const sendEmbed = async () => {
     </div>
 
     <div class="w-full xl:w-[40%] relative">
-      
       <div class="sticky top-6 flex flex-col gap-6">
         
         <div class="bg-[#313338] rounded-2xl shadow-2xl overflow-hidden border border-gray-800">
@@ -333,7 +325,7 @@ const sendEmbed = async () => {
         </div>
 
         <button @click="sendEmbed" :disabled="isSending" class="w-full flex items-center justify-center gap-3 bg-purple-600 hover:bg-purple-500 text-white px-6 py-4 rounded-2xl font-extrabold text-lg transition-all shadow-[0_0_20px_rgba(147,51,234,0.3)] hover:shadow-[0_0_30px_rgba(168,85,247,0.5)] hover:-translate-y-1 disabled:opacity-50 disabled:cursor-wait disabled:hover:translate-y-0">
-          <svg v-if="isSending" class="animate-spin h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+          <IconSpinner v-if="isSending" class="h-6 w-6 text-white" />
           <svg v-else xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
           <span v-if="!isSending">Отправить</span>
           <span v-else>Отправка...</span>

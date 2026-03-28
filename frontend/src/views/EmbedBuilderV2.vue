@@ -3,6 +3,12 @@ import { ref, inject, computed, onMounted } from 'vue'
 import { getAvatarUrl } from '../utils/helpers'
 import { useToast } from '../utils/useToast'
 
+import IconDocumentText from '../components/icons/IconDocumentText.vue'
+import IconPhotograph from '../components/icons/IconPhotograph.vue'
+import IconLinkAlt from '../components/icons/IconLinkAlt.vue'
+import IconPaperClip from '../components/icons/IconPaperClip.vue'
+import IconTrash from '../components/icons/IconTrash.vue'
+
 const { showToast } = useToast()
 const user = inject('user') as any
 const botInfo = inject('botInfo') as any
@@ -141,16 +147,20 @@ const sendEmbed = async () => {
             <div class="absolute right-4 top-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
               <button @click="moveUp(index)" class="p-1 text-gray-400 hover:text-white bg-gray-800 rounded-lg"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg></button>
               <button @click="moveDown(index)" class="p-1 text-gray-400 hover:text-white bg-gray-800 rounded-lg"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg></button>
-              <button @click="removeBlock(index)" class="p-1 text-red-400 hover:text-red-300 bg-red-900/30 rounded-lg ml-2"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+              <button @click="removeBlock(index)" class="p-1 text-red-400 hover:text-red-300 bg-red-900/30 rounded-lg ml-2"><IconTrash class="w-4 h-4" /></button>
             </div>
 
             <div v-if="block.type === 'text_display'">
-              <span class="text-xs font-extrabold text-blue-400 uppercase mb-3 block tracking-widest flex items-center gap-2"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h8m-8 6h16" /></svg> Text Display</span>
+              <span class="text-xs font-extrabold text-blue-400 uppercase mb-3 block tracking-widest flex items-center gap-2">
+                <IconDocumentText class="w-4 h-4" /> Text Display
+              </span>
               <textarea v-model="block.content" rows="3" placeholder="Введите текст (Поддерживает Markdown и ## Заголовки)..." class="w-full bg-gray-950 border border-gray-700 text-white px-4 py-3 rounded-xl outline-none focus:border-blue-500"></textarea>
             </div>
 
             <div v-else-if="block.type === 'media_gallery'">
-              <span class="text-xs font-extrabold text-green-400 uppercase mb-3 block tracking-widest flex items-center gap-2"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> Media Gallery</span>
+              <span class="text-xs font-extrabold text-green-400 uppercase mb-3 block tracking-widest flex items-center gap-2">
+                <IconPhotograph class="w-4 h-4" /> Media Gallery
+              </span>
               <input v-model="block.url" type="text" placeholder="URL изображения (https://...)" class="w-full bg-gray-950 border border-gray-700 text-white px-4 py-3 rounded-xl outline-none focus:border-green-500 mb-3">
               <input v-model="block.description" type="text" placeholder="Описание изображения (Alt text)..." class="w-full bg-gray-950 border border-gray-700 text-white px-4 py-3 rounded-xl outline-none focus:border-green-500">
             </div>
@@ -162,7 +172,9 @@ const sendEmbed = async () => {
             </div>
 
             <div v-else-if="block.type === 'section'">
-              <span class="text-xs font-extrabold text-pink-400 uppercase mb-3 block tracking-widest flex items-center gap-2"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg> Section (Секция с Кнопкой)</span>
+              <span class="text-xs font-extrabold text-pink-400 uppercase mb-3 block tracking-widest flex items-center gap-2">
+                <IconLinkAlt class="w-4 h-4" /> Section (Секция с Кнопкой)
+              </span>
               <input v-model="block.content" type="text" placeholder="Текст слева..." class="w-full bg-gray-950 border border-gray-700 text-white px-4 py-3 rounded-xl outline-none focus:border-pink-500 mb-3">
               <div class="flex gap-4">
                 <input v-model="block.button_label" type="text" placeholder="Текст на кнопке" class="w-1/3 bg-gray-950 border border-gray-700 text-white px-4 py-3 rounded-xl outline-none focus:border-pink-500">
@@ -171,7 +183,9 @@ const sendEmbed = async () => {
             </div>
 
             <div v-else-if="block.type === 'file'">
-              <span class="text-xs font-extrabold text-yellow-400 uppercase mb-3 block tracking-widest flex items-center gap-2"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> File (Файл)</span>
+              <span class="text-xs font-extrabold text-yellow-400 uppercase mb-3 block tracking-widest flex items-center gap-2">
+                <IconPaperClip class="w-4 h-4" /> File (Файл)
+              </span>
               <input v-model="block.url" type="text" placeholder="Прямая URL ссылка на файл (Например: .pdf, .zip)..." class="w-full bg-gray-950 border border-gray-700 text-white px-4 py-3 rounded-xl outline-none focus:border-yellow-500">
             </div>
 
@@ -183,22 +197,22 @@ const sendEmbed = async () => {
           <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             
             <button @click="addBlock('text_display')" class="flex flex-col items-center justify-center gap-3 bg-gray-950 hover:bg-blue-500/10 border border-gray-800 hover:border-blue-500/30 text-gray-400 hover:text-blue-400 py-4 px-2 rounded-2xl transition-all group shadow-sm">
-              <svg class="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h8m-8 6h16" /></svg>
+              <IconDocumentText class="w-6 h-6 group-hover:scale-110 transition-transform" />
               <span class="text-xs font-bold">Текст</span>
             </button>
             
             <button @click="addBlock('media_gallery')" class="flex flex-col items-center justify-center gap-3 bg-gray-950 hover:bg-green-500/10 border border-gray-800 hover:border-green-500/30 text-gray-400 hover:text-green-400 py-4 px-2 rounded-2xl transition-all group shadow-sm">
-              <svg class="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <IconPhotograph class="w-6 h-6 group-hover:scale-110 transition-transform" />
               <span class="text-xs font-bold">Галерея</span>
             </button>
             
             <button @click="addBlock('section')" class="flex flex-col items-center justify-center gap-3 bg-gray-950 hover:bg-pink-500/10 border border-gray-800 hover:border-pink-500/30 text-gray-400 hover:text-pink-400 py-4 px-2 rounded-2xl transition-all group shadow-sm">
-              <svg class="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+              <IconLinkAlt class="w-6 h-6 group-hover:scale-110 transition-transform" />
               <span class="text-xs font-bold">Секция</span>
             </button>
             
             <button @click="addBlock('file')" class="flex flex-col items-center justify-center gap-3 bg-gray-950 hover:bg-yellow-500/10 border border-gray-800 hover:border-yellow-500/30 text-gray-400 hover:text-yellow-400 py-4 px-2 rounded-2xl transition-all group shadow-sm">
-              <svg class="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              <IconPaperClip class="w-6 h-6 group-hover:scale-110 transition-transform" />
               <span class="text-xs font-bold">Файл</span>
             </button>
             
@@ -255,7 +269,9 @@ const sendEmbed = async () => {
                       </div>
 
                       <div v-else-if="block.type === 'file' && block.url" class="bg-[#2b2d31] border border-[#1e1f22] rounded-[8px] p-3 flex items-center gap-3">
-                        <div class="p-2 bg-[#1e1f22] rounded"><svg class="w-6 h-6 text-[#dbdee1]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></div>
+                        <div class="p-2 bg-[#1e1f22] rounded">
+                          <IconPaperClip class="w-6 h-6 text-[#dbdee1]" />
+                        </div>
                         <div class="flex flex-col"><span class="text-[#00a8fc] hover:underline cursor-pointer text-sm font-medium">{{ block.url.split('/').pop() || 'file' }}</span><span class="text-xs text-[#80848e]">Вложение</span></div>
                       </div>
 
