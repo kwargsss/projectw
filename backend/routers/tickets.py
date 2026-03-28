@@ -21,7 +21,7 @@ class TicketConnectionManager:
         self.active_connections[ticket_id].append(websocket)
 
     def disconnect(self, websocket: WebSocket, ticket_id: str):
-        if ticket_id in self.active_connections:
+        if ticket_id in self.active_connections and websocket in self.active_connections[ticket_id]:
             self.active_connections[ticket_id].remove(websocket)
 
 ticket_manager = TicketConnectionManager()
@@ -29,15 +29,19 @@ ticket_manager = TicketConnectionManager()
 @router.get("")
 async def get_all_tickets(request: Request, db: AsyncSession = Depends(get_db)):
     await verify_support_access(request, db)
-    ticket_keys = await redis_client.keys("ticket:*")
+
+    ticket_keys = []
+    async for key in redis_client.scan_iter("ticket:*"):
+        ticket_keys.append(key)
+        
     tickets = []
-    
     for key in ticket_keys:
         try:
             if await redis_client.type(key) in [b'hash', 'hash']:
                 data = await redis_client.hgetall(key)
                 if data: tickets.append(data)
-        except Exception: continue
+        except Exception: 
+            continue
 
     tickets.sort(key=lambda x: int(x.get("created_at", 0)) if str(x.get("created_at", "")).isdigit() else 0, reverse=True)
     return {"status": "ok", "data": tickets}
@@ -89,13 +93,39 @@ async def websocket_ticket_chat(websocket: WebSocket, ticket_id: str):
     await ticket_manager.connect(websocket, ticket_id)
     pubsub = redis_client.pubsub()
     await pubsub.subscribe(f"ticket_chat:{ticket_id}")
+
+    async def redis_reader():
+        try:
+            async for message in pubsub.listen():
+                if message and message["type"] == "message":
+                    await websocket.send_json(json.loads(message["data"]))
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
+
+    async def ws_reader():
+        try:
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            pass
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
+
+    task_redis = asyncio.create_task(redis_reader())
+    task_ws = asyncio.create_task(ws_reader())
+
     try:
-        while True:
-            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-            if message: await websocket.send_json(json.loads(message["data"]))
-            await asyncio.sleep(0.1)
-            try: await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
-            except asyncio.TimeoutError: pass
-    except WebSocketDisconnect:
+        done, pending = await asyncio.wait(
+            [task_redis, task_ws], 
+            return_when=asyncio.FIRST_COMPLETED
+        )
+        for task in pending:
+            task.cancel()
+    finally:
         ticket_manager.disconnect(websocket, ticket_id)
         await pubsub.unsubscribe(f"ticket_chat:{ticket_id}")
+        await pubsub.close()

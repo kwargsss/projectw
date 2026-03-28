@@ -2,13 +2,14 @@ import redis.asyncio as redis
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.pool import NullPool
 from config import Config
 
 engine = create_async_engine(
     Config.DATABASE_URL, 
     echo=False,
-    poolclass=NullPool,
+    pool_size=10,
+    max_overflow=20,
+    pool_recycle=1800,
     connect_args={"statement_cache_size": 0, "ssl": "require"} if "postgres" in Config.DATABASE_URL else {}
 )
 

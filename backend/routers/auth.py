@@ -1,7 +1,7 @@
 import aiohttp
 import jwt
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,6 +38,9 @@ async def auth_callback(request: Request, code: str, db: AsyncSession = Depends(
 
         headers = {'Authorization': f'Bearer {access_token}'}
         async with session.get(f"{Config.API_BASE_URL}/users/@me", headers=headers) as response:
+            if response.status != 200:
+                logger.error(f"[AUTH] Ошибка получения данных от Discord: {response.status}")
+                return RedirectResponse(url=f"{Config.FRONTEND_URL}/login?error=discord_api_error")
             user_info = await response.json()
 
     discord_id = int(user_info['id'])
@@ -48,7 +51,7 @@ async def auth_callback(request: Request, code: str, db: AsyncSession = Depends(
         if db_user:
             db_user.username = user_info['username']
             db_user.avatar_hash = user_info.get('avatar')
-            db_user.last_login = datetime.utcnow()
+            db_user.last_login = datetime.now(timezone.utc)
             if discord_id == Config.ADMIN_DISCORD_ID and db_user.role != "superadmin": db_user.role = "superadmin"
         else:
             is_new = True
@@ -59,11 +62,13 @@ async def auth_callback(request: Request, code: str, db: AsyncSession = Depends(
     if is_new: logger.info(f"[AUTH] Новый пользователь: {db_user.username} (ID: {db_user.id})")
     else: logger.info(f"[AUTH] Вход: {db_user.username} (Роль: {db_user.role})")
 
-    token_payload = { "sub": str(db_user.id), "username": db_user.username, "avatar": db_user.avatar_hash, "role": db_user.role, "exp": datetime.utcnow() + timedelta(days=7) }
+    token_payload = { "sub": str(db_user.id), "username": db_user.username, "avatar": db_user.avatar_hash, "role": db_user.role, "exp": datetime.now(timezone.utc) + timedelta(days=7) }
     token = jwt.encode(token_payload, Config.JWT_SECRET, algorithm="HS256")
 
     response = RedirectResponse(url=f"{Config.FRONTEND_URL}/")
-    response.set_cookie(key="access_token", value=token, httponly=True, secure=False, samesite="lax", max_age=7*24*3600)
+    
+    is_secure = Config.FRONTEND_URL.startswith("https")
+    response.set_cookie(key="access_token", value=token, httponly=True, secure=is_secure, samesite="lax", max_age=7*24*3600)
     return response
 
 @router.get("/me")
@@ -77,8 +82,12 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
 
 @router.post("/logout")
 async def logout(request: Request):
-    try: logger.info(f"[AUTH] Выход: {get_user_from_token(request)['username']}.")
-    except: pass
+    try: 
+        user_data = get_user_from_token(request)
+        logger.info(f"[AUTH] Выход: {user_data['username']}.")
+    except Exception: 
+        pass
+        
     response = JSONResponse(content={"status": "ok"})
     response.delete_cookie("access_token")
     return response

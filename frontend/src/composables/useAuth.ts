@@ -8,12 +8,11 @@ export interface User {
 	avatar: string | null
 	role: string
 }
+const user = ref<User | null>(null)
+const isLoggedIn = ref(false)
+const error = ref<string | null>(null)
 
 export function useAuth() {
-	const user = ref<User | null>(null)
-	const isLoggedIn = ref(false)
-	const error = ref<string | null>(null)
-
 	const fetchUser = async () => {
 		try {
 			const res = await fetch(`${API_URL}/auth/me`, { credentials: 'include' })

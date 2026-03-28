@@ -18,7 +18,7 @@ logger = setup_logger("backend", Config.TG_BOT_TOKEN, Config.TG_CHAT_ID)
 @limiter.limit("30/minute") 
 async def send_embed_message(request: Request, payload: EmbedStructure, db: AsyncSession = Depends(get_db)):
     admin_info = await verify_admin_access(request, db)
-    bot_payload = payload.dict(exclude_none=True)
+    bot_payload = payload.model_dump(exclude_none=True)
     avatar_url = f"https://cdn.discordapp.com/avatars/{admin_info['sub']}/{admin_info['avatar']}.png" if admin_info.get('avatar') else "https://cdn.discordapp.com/embed/avatars/0.png"
     bot_payload['footer'] = {"text": f"Отправлено администратором: {admin_info['username']}", "icon_url": avatar_url}
     
@@ -30,7 +30,7 @@ async def send_embed_message(request: Request, payload: EmbedStructure, db: Asyn
 @limiter.limit("30/minute") 
 async def send_embed_message_v2(request: Request, payload: EmbedV2Structure, db: AsyncSession = Depends(get_db)):
     admin_info = await verify_admin_access(request, db)
-    bot_payload = payload.dict(exclude_none=True)
+    bot_payload = payload.model_dump(exclude_none=True)
     avatar_url = f"https://cdn.discordapp.com/avatars/{admin_info['sub']}/{admin_info['avatar']}.png" if admin_info.get('avatar') else "https://cdn.discordapp.com/embed/avatars/0.png"
     bot_payload['footer'] = {"text": f"Отправлено администратором: {admin_info['username']}", "icon_url": avatar_url}
     
@@ -54,7 +54,7 @@ async def get_notifications(request: Request, db: AsyncSession = Depends(get_db)
 @limiter.limit("30/minute")
 async def save_notifications(request: Request, payload: NotificationSettingsModel, db: AsyncSession = Depends(get_db)):
     admin_info = await verify_admin_access(request, db)
-    await redis_client.set("notification_settings", payload.json())
+    await redis_client.set("notification_settings", payload.model_dump_json())
     logger.warning(f"[ACTION] Админ {admin_info['username']} обновил настройки оповещений.")
     return {"status": "ok"}
 

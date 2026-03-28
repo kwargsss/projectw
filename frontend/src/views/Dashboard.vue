@@ -7,11 +7,9 @@ import { useBot } from '../composables/useBot'
 import BotBadge from '../components/BotBadge.vue'
 import UserBadge from '../components/UserBadge.vue'
 import BotStatus from '../components/BotStatus.vue'
-import UserDashboard from './UserDashboard.vue'
 
 import IconMenu from '../components/icons/IconMenu.vue'
 import IconUserGroup from '../components/icons/IconUserGroup.vue'
-import IconShield from '../components/icons/IconShield.vue'
 import IconChevronLeft from '../components/icons/IconChevronLeft.vue'
 import IconChartBar from '../components/icons/IconChartBar.vue'
 import IconTicket from '../components/icons/IconTicket.vue'
@@ -29,9 +27,7 @@ const isLoading = ref(true)
 const stats = ref<any>(null)
 const botStatus = ref<'connecting' | 'online' | 'offline'>('connecting')
 const isSidebarOpen = ref(false)
-const dashboardMode = ref<'admin' | 'user'>('user')
 
-// Provide to child components to maintain existing functionality
 provide('user', user)
 provide('botInfo', botInfo)
 provide('botStatus', botStatus)
@@ -51,19 +47,15 @@ onMounted(async () => {
     return
   }
 
-  if (user.value.role !== 'user') {
-    dashboardMode.value = 'admin'
-    if (user.value.role === 'support' && route.path === '/dashboard') {
-      router.push('/dashboard/tickets')
-    }
+  if (user.value.role === 'support' && route.path === '/dashboard') {
+    router.push('/dashboard/tickets')
   }
 
   await fetchBot()
 })
 
-const toggleMode = () => {
-  dashboardMode.value = dashboardMode.value === 'admin' ? 'user' : 'admin'
-  isSidebarOpen.value = false
+const goToUserProfile = () => {
+  router.push(`/profile/${user.value?.id}`)
 }
 
 const handleLogout = async () => {
@@ -132,43 +124,37 @@ const visibleSidebarLinks = computed(() => {
     </div>
 
     <template v-else>
-      <div class="flex-1 flex flex-col transition-all duration-300 z-10" :class="isSidebarOpen && dashboardMode === 'admin' ? 'ml-64' : 'ml-0'">
+      <div class="flex-1 flex flex-col transition-all duration-300 z-10" :class="isSidebarOpen ? 'md:ml-64' : 'ml-0'">
         
         <header class="w-full max-w-7xl mx-auto px-6 py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-800/50 mb-8 transition-all">
-          
           <div class="flex items-center gap-4">
-            <button v-if="dashboardMode === 'admin'" @click="isSidebarOpen = !isSidebarOpen" class="w-12 h-12 rounded-full bg-gray-900/80 border border-gray-700 flex items-center justify-center hover:bg-gray-800 transition-colors shadow-lg">
+            <button @click="isSidebarOpen = !isSidebarOpen" class="w-12 h-12 rounded-full bg-gray-900/80 border border-gray-700 flex items-center justify-center hover:bg-gray-800 transition-colors shadow-lg">
                <IconMenu class="w-6 h-6" />
             </button>
-            <BotBadge :botInfo="botInfo" :showSubtitle="dashboardMode === 'admin'" />
+            <BotBadge :botInfo="botInfo" :showSubtitle="true" />
           </div>
 
           <div class="flex items-center gap-4">
-            <button v-if="user && user.role !== 'user'" @click="toggleMode" class="bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-2 shadow-lg">
-              <IconUserGroup v-if="dashboardMode === 'admin'" class="w-4 h-4" />
-              <IconShield v-else class="w-4 h-4" />
-              {{ dashboardMode === 'admin' ? 'Людской дашборд' : 'Админ-панель' }}
+            <button @click="goToUserProfile" class="bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-2 shadow-lg">
+              <IconUserGroup class="w-4 h-4" />
+              Людской дашборд
             </button>
 
-            <BotStatus v-if="dashboardMode === 'admin'" @updateStats="handleStatsUpdate" />
+            <BotStatus @updateStats="handleStatsUpdate" />
             <UserBadge v-if="user" :user="user" @logout="handleLogout" />
           </div>
         </header>
 
         <main class="w-full max-w-7xl mx-auto px-6 pb-20 flex-1 relative z-10">
-          <UserDashboard v-if="dashboardMode === 'user'" :user="user" />
-          
-          <template v-else>
-            <div v-if="route.path === '/dashboard' && user?.role !== 'support'" class="mb-10">
-              <h1 class="text-3xl md:text-4xl font-extrabold text-white mb-2">Добро пожаловать, <span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">{{ user?.username }}</span>!</h1>
-              <p class="text-gray-400 font-medium">Система управления сервером.</p>
-            </div>
-            <router-view></router-view>
-          </template>
+          <div v-if="route.path === '/dashboard' && user?.role !== 'support'" class="mb-10">
+            <h1 class="text-3xl md:text-4xl font-extrabold text-white mb-2">Добро пожаловать, <span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">{{ user?.username }}</span>!</h1>
+            <p class="text-gray-400 font-medium">Система управления сервером.</p>
+          </div>
+          <router-view></router-view>
         </main>
       </div>
 
-      <aside v-if="dashboardMode === 'admin'" class="fixed left-0 top-0 h-full w-64 bg-gray-900/95 backdrop-blur-xl border-r border-gray-800 rounded-r-[2rem] transition-transform duration-300 z-50 flex flex-col shadow-[20px_0_50px_rgba(0,0,0,0.5)]"
+      <aside class="fixed left-0 top-0 h-full w-64 bg-gray-900/95 backdrop-blur-xl border-r border-gray-800 rounded-r-[2rem] transition-transform duration-300 z-50 flex flex-col shadow-[20px_0_50px_rgba(0,0,0,0.5)]"
              :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'">
         <div class="p-6 border-b border-gray-800 flex justify-between items-center">
           <h2 class="font-bold text-gray-200">Навигация</h2>
@@ -192,7 +178,7 @@ const visibleSidebarLinks = computed(() => {
         </nav>
       </aside>
 
-      <div v-if="isSidebarOpen && dashboardMode === 'admin'" @click="isSidebarOpen = false" class="fixed inset-0 bg-black/50 z-40 lg:hidden"></div>
+      <div v-if="isSidebarOpen" @click="isSidebarOpen = false" class="fixed inset-0 bg-black/50 z-40 md:hidden"></div>
     </template>
   </div>
 </template>
