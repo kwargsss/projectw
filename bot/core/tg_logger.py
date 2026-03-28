@@ -4,7 +4,6 @@ import aiohttp
 
 from datetime import datetime
 
-
 CATEGORIES = {
     "[SYSTEM]": {"emoji": "⚙️", "name": "#СИСТЕМА"},
     "[AUTH]": {"emoji": "🔐", "name": "#АВТОРИЗАЦИЯ"},
