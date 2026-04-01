@@ -4,6 +4,16 @@ import { inject, computed } from 'vue'
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js'
 import { Line } from 'vue-chartjs'
 import IconUserShield from '../components/icons/IconUserShield.vue'
+import IconUserGroup from '../components/icons/IconUserGroup.vue'
+import IconChartBar from '../components/icons/IconChartBar.vue'
+import IconServerBuilding from '../components/icons/IconServerBuilding.vue'
+import IconChat from '../components/icons/IconChat.vue'
+import IconTerminal from '../components/icons/IconTerminal.vue'
+import IconHealth from '../components/icons/IconHealth.vue'
+import IconLightning from '../components/icons/IconLightning.vue'
+import IconClock from '../components/icons/IconClock.vue'
+import IconChip from '../components/icons/IconChip.vue'
+import IconCpu from '../components/icons/IconCpu.vue'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
@@ -70,13 +80,13 @@ const chartOptions = {
 </script>
 
 <template>
-  <div class="animate-fade-in">
+  <div class="animate-fade-in pb-10">
     <div v-if="botStatus === 'online' && stats" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         
         <div class="bg-gray-900/60 backdrop-blur-md border border-gray-800 p-6 rounded-3xl shadow-lg hover:-translate-y-1 transition-all group">
           <div class="flex justify-between items-start mb-4">
             <div class="p-3 bg-green-500/10 rounded-2xl group-hover:bg-green-500/20 transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-green-400"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21m0 0h4.5V3.75M5.25 9h3.75m-3.75 3h3.75m-3.75 3h3.75m3.75-6h3.75m-3.75 3h3.75m-3.75 3h3.75" /></svg>
+              <IconServerBuilding class="w-8 h-8 text-green-400" />
             </div>
             <span class="flex h-3 w-3"><span class="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-green-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span></span>
           </div>
@@ -87,7 +97,7 @@ const chartOptions = {
         <div class="bg-gray-900/60 backdrop-blur-md border border-gray-800 p-6 rounded-3xl shadow-lg hover:-translate-y-1 transition-all group">
           <div class="flex justify-between items-start mb-4">
             <div class="p-3 bg-indigo-500/10 rounded-2xl group-hover:bg-indigo-500/20 transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-indigo-400"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" /></svg>
+              <IconUserGroup class="w-8 h-8 text-indigo-400" />
             </div>
           </div>
           <p class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Всего участников</p>
@@ -97,7 +107,7 @@ const chartOptions = {
         <div class="bg-gray-900/60 backdrop-blur-md border border-gray-800 p-6 rounded-3xl shadow-lg hover:-translate-y-1 transition-all group">
           <div class="flex justify-between items-start mb-4">
             <div class="p-3 bg-pink-500/10 rounded-2xl group-hover:bg-pink-500/20 transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-pink-400"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.282 48.282 0 0 0 5.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" /></svg>
+              <IconChat class="w-8 h-8 text-pink-400" />
             </div>
           </div>
           <p class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Сообщений (24ч)</p>
@@ -107,14 +117,14 @@ const chartOptions = {
         <div class="bg-gray-900/60 backdrop-blur-md border border-gray-800 p-6 rounded-3xl shadow-lg hover:-translate-y-1 transition-all group">
           <div class="flex justify-between items-start mb-4">
             <div class="p-3 bg-purple-500/10 rounded-2xl group-hover:bg-purple-500/20 transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-purple-400"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+              <IconTerminal class="w-8 h-8 text-purple-400" />
             </div>
           </div>
           <p class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Команд (24ч)</p>
           <h3 class="text-3xl font-extrabold text-white">{{ stats.commands_24h }}</h3>
         </div>
 
-        <div class="bg-gray-900/60 backdrop-blur-md border border-gray-800 p-6 rounded-3xl shadow-lg hover:-translate-y-1 transition-all group">
+        <div class="bg-gray-900/60 backdrop-blur-md border border-gray-800 p-6 rounded-3xl shadow-lg hover:-translate-y-1 transition-all group lg:col-span-2">
           <div class="flex justify-between items-start mb-4">
             <div class="p-3 bg-yellow-500/10 rounded-2xl group-hover:bg-yellow-500/20 transition-colors">
               <IconUserShield class="w-8 h-8 text-yellow-400" />
@@ -125,10 +135,68 @@ const chartOptions = {
         </div>
     </div>
 
+    <div v-if="botStatus === 'online' && stats?.health" class="mt-8">
+      <div class="flex items-center gap-3 mb-4 px-2">
+        <div class="p-2 bg-cyan-500/10 border border-cyan-500/20 rounded-xl">
+          <IconHealth class="w-5 h-5 text-cyan-400" />
+        </div>
+        <h2 class="text-lg font-bold text-white">Здоровье системы (Бот)</h2>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        
+        <div class="bg-gray-900/60 backdrop-blur-md border border-gray-800 p-4 rounded-3xl shadow-lg hover:-translate-y-1 transition-all group flex flex-col items-start gap-2">
+          <div class="p-3 bg-cyan-500/10 rounded-2xl group-hover:bg-cyan-500/20 transition-colors border border-cyan-500/10">
+            <IconLightning class="w-6 h-6 text-cyan-400" />
+          </div>
+          <div>
+            <p class="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Ping API</p>
+            <h3 class="text-xl font-extrabold text-white flex items-end gap-1">
+              {{ stats.health.ping || '0' }} <span class="text-xs font-medium text-gray-400 mb-0.5">мс</span>
+            </h3>
+          </div>
+        </div>
+
+        <div class="bg-gray-900/60 backdrop-blur-md border border-gray-800 p-4 rounded-3xl shadow-lg hover:-translate-y-1 transition-all group flex flex-col items-start gap-2">
+          <div class="p-3 bg-emerald-500/10 rounded-2xl group-hover:bg-emerald-500/20 transition-colors border border-emerald-500/10">
+            <IconClock class="w-6 h-6 text-emerald-400" />
+          </div>
+          <div>
+            <p class="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Время работы</p>
+            <h3 class="text-xl font-extrabold text-white">{{ stats.health.uptime || '—' }}</h3>
+          </div>
+        </div>
+
+        <div class="bg-gray-900/60 backdrop-blur-md border border-gray-800 p-4 rounded-3xl shadow-lg hover:-translate-y-1 transition-all group flex flex-col items-start gap-2">
+          <div class="p-3 bg-orange-500/10 rounded-2xl group-hover:bg-orange-500/20 transition-colors border border-orange-500/10">
+            <IconChip class="w-6 h-6 text-orange-400" />
+          </div>
+          <div>
+            <p class="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">ОЗУ (Бот)</p>
+            <h3 class="text-xl font-extrabold text-white flex items-end gap-1">
+              {{ stats.health.ram || '0' }} <span class="text-xs font-medium text-gray-400 mb-0.5">МБ</span>
+            </h3>
+          </div>
+        </div>
+
+        <div class="bg-gray-900/60 backdrop-blur-md border border-gray-800 p-4 rounded-3xl shadow-lg hover:-translate-y-1 transition-all group flex flex-col items-start gap-2">
+          <div class="p-3 bg-rose-500/10 rounded-2xl group-hover:bg-rose-500/20 transition-colors border border-rose-500/10">
+            <IconCpu class="w-6 h-6 text-rose-400" />
+          </div>
+          <div>
+            <p class="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">ЦП (Сист.)</p>
+            <h3 class="text-xl font-extrabold text-white flex items-end gap-1">
+              {{ stats.health.cpu || '0' }} <span class="text-xs font-medium text-gray-400 mb-0.5">%</span>
+            </h3>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div v-if="botStatus === 'online' && stats?.weekly" class="mt-8 bg-gray-900/60 backdrop-blur-md border border-gray-800 p-6 rounded-3xl shadow-lg transition-all">
       <div class="flex items-center gap-4 mb-6">
         <div class="p-3 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-2xl">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-purple-400"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
+          <IconChartBar class="w-8 h-8 text-purple-400" />
         </div>
         <div>
           <h3 class="text-xl font-bold text-white leading-tight">Активность сервера</h3>

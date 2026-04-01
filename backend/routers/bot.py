@@ -73,11 +73,19 @@ async def get_stats(request: Request, db: AsyncSession = Depends(get_db)):
         data = await redis_client.get("guild_stats")
         if data:
             stats = json.loads(data)
+            
             async with db.begin():
                 result = await db.execute(select(User).where(User.role.in_(["admin", "superadmin", "support"])))
                 stats["admin_count"] = len(result.scalars().all())
+
             weekly_data = await redis_client.get("weekly_history")
             stats["weekly"] = json.loads(weekly_data) if weekly_data else []
+            
+            health_data = await redis_client.get("bot_health")
+            stats["health"] = json.loads(health_data) if health_data else {
+                "ping": 0, "uptime": "0м", "ram": 0, "cpu": 0
+            }
+
             return {"status": "ok", "data": stats}
         return {"status": "error", "message": "No data in Redis"}
     except Exception as e: return {"status": "error", "message": str(e)}

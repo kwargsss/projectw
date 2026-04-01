@@ -1,5 +1,6 @@
 import uvicorn
 import aiohttp
+import asyncio
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +10,7 @@ from config import Config
 from database import init_db
 from core.limiter import limiter
 from core.logger import setup_logger
-from routers import auth, tickets, users, bot
+from routers import auth, bot, tickets, users, levels
 
 app = FastAPI(title="Discord Bot Dashboard API")
 
@@ -31,11 +32,14 @@ app.include_router(auth.router)
 app.include_router(tickets.router)
 app.include_router(users.router)
 app.include_router(bot.router)
+app.include_router(levels.router)
 
 @app.on_event("startup")
 async def startup_event():
     await init_db()
     logger.info("[SYSTEM] Бэкенд запущен, БД проверена.")
+
+    asyncio.create_task(levels.background_sync_task())
 
     if Config.DISCORD_BOT_TOKEN:
         async with aiohttp.ClientSession() as session:

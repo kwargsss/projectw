@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, BigInteger, DateTime
+from sqlalchemy import Column, String, BigInteger, DateTime, Integer
 from datetime import datetime
 from database import Base
 
@@ -12,3 +12,16 @@ class User(Base):
     role = Column(String, default="user")
     first_login = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, default=datetime.utcnow)
+
+class MemberStats(Base):
+    __tablename__ = "member_stats"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, unique=True, nullable=False, index=True)
+    
+    xp = Column(BigInteger, default=0)
+    level = Column(Integer, default=0)
+    messages_count = Column(Integer, default=0)
+    voice_minutes = Column(Integer, default=0)
+    
+    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

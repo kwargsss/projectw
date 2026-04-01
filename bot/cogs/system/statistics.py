@@ -1,13 +1,17 @@
 import disnake
 import json
 import asyncio
+import time
+import psutil
 
 from datetime import datetime
 from disnake.ext import commands, tasks
 
+
 class StatisticsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.start_time = time.time()
         self.update_stats_cache.start()
 
     def cog_unload(self):
@@ -62,6 +66,27 @@ class StatisticsCog(commands.Cog):
             "commands_24h": int(cmd_count) if cmd_count else 0 
         }
         await self.bot.redis.set("guild_stats", json.dumps(stats), ex=30)
+
+        process = psutil.Process()
+        ram_usage = process.memory_info().rss / (1024 * 1024)
+        cpu_usage = psutil.cpu_percent(interval=None)
+        
+        uptime_seconds = int(time.time() - self.start_time)
+        days, remainder = divmod(uptime_seconds, 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        
+        if days > 0: uptime_str = f"{days}д {hours}ч"
+        elif hours > 0: uptime_str = f"{hours}ч {minutes}м"
+        else: uptime_str = f"{minutes}м"
+
+        health_stats = {
+            "ping": round(self.bot.latency * 1000),
+            "uptime": uptime_str,
+            "ram": round(ram_usage, 1),
+            "cpu": round(cpu_usage, 1)
+        }
+        await self.bot.redis.set("bot_health", json.dumps(health_stats), ex=30)
 
     @update_stats_cache.before_loop
     async def before_update_stats_cache(self):
