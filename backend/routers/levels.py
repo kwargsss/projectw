@@ -1,6 +1,6 @@
 import asyncio
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from sqlalchemy.future import select
 from database import redis_client, AsyncSessionLocal
 from models import MemberStats
@@ -18,51 +18,59 @@ async def background_sync_task():
     while True:
         await asyncio.sleep(900)
         try:
-            top_users = await redis_client.zrange("global_xp", 0, -1, withscores=True)
-            if not top_users:
-                continue
+            u_xp = await redis_client.zrange("global_xp", 0, -1)
+            u_msg = await redis_client.zrange("global_messages", 0, -1)
+            u_voice = await redis_client.zrange("global_voice_mins", 0, -1)
+            
+            all_uids = set(u_xp) | set(u_msg) | set(u_voice)
+            if not all_uids: continue
 
             async with AsyncSessionLocal() as db:
                 async with db.begin():
-                    for item in top_users:
-                        user_id = int(item[0].decode('utf-8') if isinstance(item[0], bytes) else item[0])
-                        xp = float(item[1])
-                        level = get_level_from_xp(xp)
+                    for uid_val in all_uids:
+                        uid_str = uid_val.decode() if isinstance(uid_val, bytes) else str(uid_val)
+                        uid_int = int(uid_str)
+                        
+                        xp_score = await redis_client.zscore("global_xp", uid_str)
+                        xp = float(xp_score) if xp_score else 0.0
+                        
+                        stats = await redis_client.hgetall(f"user_stats:{uid_str}")
+                        def get_val(k):
+                            v = stats.get(k) or stats.get(k.encode())
+                            return int(v.decode() if isinstance(v, bytes) else (v or 0))
+                        
+                        msgs = get_val("messages")
+                        v_mins = get_val("voice_mins")
 
-                        stats = await redis_client.hgetall(f"user_stats:{user_id}")
-                        msg_count = int(stats.get(b"messages", stats.get("messages", 0)))
-                        voice_mins = int(stats.get(b"voice_mins", stats.get("voice_mins", 0)))
-
-                        result = await db.execute(select(MemberStats).where(MemberStats.user_id == user_id))
+                        result = await db.execute(select(MemberStats).where(MemberStats.user_id == uid_int))
                         db_stat = result.scalars().first()
 
                         if db_stat:
                             db_stat.xp = xp
-                            db_stat.level = level
-                            db_stat.messages_count = msg_count
-                            db_stat.voice_minutes = voice_mins
+                            db_stat.level = get_level_from_xp(xp)
+                            db_stat.messages_count = msgs
+                            db_stat.voice_minutes = v_mins
                         else:
-                            new_stat = MemberStats(
-                                user_id=user_id, xp=xp, level=level, 
-                                messages_count=msg_count, voice_minutes=voice_mins
-                            )
-                            db.add(new_stat)
-            logger.info("[LEVELS] Автоматический бэкап опыта из Redis в PostgreSQL выполнен.")
+                            db.add(MemberStats(user_id=uid_int, xp=xp, level=get_level_from_xp(xp), 
+                                               messages_count=msgs, voice_minutes=v_mins))
+            logger.info(f"[LEVELS] Синхронизировано {len(all_uids)} пользователей.")
         except Exception as e:
-            logger.error(f"[LEVELS] Ошибка фоновой синхронизации: {e}")
+            logger.error(f"[LEVELS] Ошибка синхронизации: {e}")
 
 @router.get("/leaderboard")
-async def get_web_leaderboard():
-    top_users = await redis_client.zrevrange("global_xp", 0, 49, withscores=True)
-    leaderboard = []
-    for rank_index, item in enumerate(top_users, start=1):
-        user_id = item[0].decode('utf-8') if isinstance(item[0], bytes) else item[0]
-        xp = float(item[1])
-        leaderboard.append({
-            "rank": rank_index, "user_id": user_id, 
-            "level": get_level_from_xp(xp), "xp": int(xp)
-        })
-    return {"status": "ok", "data": leaderboard}
+async def get_web_leaderboard(type: str = Query("xp", enum=["xp", "messages", "voice"])):
+    keys = {"xp": "global_xp", "messages": "global_messages", "voice": "global_voice_mins"}
+    rk = keys.get(type, "global_xp")
+    
+    top = await redis_client.zrevrange(rk, 0, 49, withscores=True)
+    data = []
+    for rank, (uid_raw, score) in enumerate(top, 1):
+        uid = uid_raw.decode() if isinstance(uid_raw, bytes) else str(uid_raw)
+        item = {"rank": rank, "user_id": uid, "score": int(float(score))}
+        if type == "xp": item["level"] = get_level_from_xp(float(score))
+        data.append(item)
+        
+    return {"status": "ok", "data": data}
 
 @router.get("/user/{user_id}")
 async def get_user_web_stats(user_id: int):
