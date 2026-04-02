@@ -1,4 +1,6 @@
 import asyncio
+import json
+import aiohttp
 
 from fastapi import APIRouter, Query
 from sqlalchemy.future import select
@@ -13,6 +15,36 @@ logger = setup_logger("backend_levels", Config.TG_BOT_TOKEN, Config.TG_CHAT_ID)
 
 def get_level_from_xp(xp: float) -> int:
     return int((xp / 100) ** 0.5)
+
+async def get_discord_user_info(user_id: str) -> dict:
+    cache_key = f"discord_user_cache:{user_id}"
+    cached = await redis_client.get(cache_key)
+    
+    if cached:
+        return json.loads(cached)
+
+    if not Config.DISCORD_BOT_TOKEN:
+        return {"username": f"Участник #{user_id[-4:]}", "avatar": None}
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            headers = {"Authorization": f"Bot {Config.DISCORD_BOT_TOKEN}"}
+            async with session.get(f"{Config.API_BASE_URL}/users/{user_id}", headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    info = {
+                        "username": data.get("username", f"Участник #{user_id[-4:]}"),
+                        "avatar": data.get("avatar")
+                    }
+                    await redis_client.setex(cache_key, 86400 * 3, json.dumps(info))
+                    return info
+                else:
+                    info = {"username": f"Участник #{user_id[-4:]}", "avatar": None}
+                    await redis_client.setex(cache_key, 3600, json.dumps(info))
+                    return info
+    except Exception as e:
+        logger.error(f"[LEVELS] Ошибка запроса к Discord API для {user_id}: {e}")
+        return {"username": f"Участник #{user_id[-4:]}", "avatar": None}
 
 async def background_sync_task():
     while True:
@@ -58,15 +90,48 @@ async def background_sync_task():
             logger.error(f"[LEVELS] Ошибка синхронизации: {e}")
 
 @router.get("/leaderboard")
-async def get_web_leaderboard(type: str = Query("xp", enum=["xp", "messages", "voice"])):
+async def get_web_leaderboard(
+    type: str = Query("xp", enum=["xp", "messages", "voice"]), 
+    target_user_id: str = None
+):
     keys = {"xp": "global_xp", "messages": "global_messages", "voice": "global_voice_mins"}
     rk = keys.get(type, "global_xp")
     
-    top = await redis_client.zrevrange(rk, 0, 49, withscores=True)
+    top = await redis_client.zrevrange(rk, 0, 9, withscores=True)
+    
+    target_score = None
+    target_rank = None
+    append_target = False
+    
+    if target_user_id:
+        in_top = any((uid.decode() if isinstance(uid, bytes) else str(uid)) == target_user_id for uid, _ in top)
+        if not in_top:
+            target_score_raw = await redis_client.zscore(rk, target_user_id)
+            if target_score_raw is not None:
+                target_rank_raw = await redis_client.zrevrank(rk, target_user_id)
+                target_score = float(target_score_raw)
+                target_rank = target_rank_raw + 1
+                append_target = True
+                top.append((target_user_id.encode(), target_score)) # Добавляем юзера в конец
+
+    user_ids = [uid_raw.decode() if isinstance(uid_raw, bytes) else str(uid_raw) for uid_raw, _ in top]
+    user_infos = await asyncio.gather(*(get_discord_user_info(uid) for uid in user_ids))
+    
     data = []
-    for rank, (uid_raw, score) in enumerate(top, 1):
+    for idx, ((uid_raw, score), u_info) in enumerate(zip(top, user_infos)):
         uid = uid_raw.decode() if isinstance(uid_raw, bytes) else str(uid_raw)
-        item = {"rank": rank, "user_id": uid, "score": int(float(score))}
+        
+        is_target = (append_target and idx == len(top) - 1)
+        rank = target_rank if is_target else (idx + 1)
+        
+        item = {
+            "rank": rank, 
+            "user_id": uid, 
+            "score": int(float(score)),
+            "username": u_info["username"],
+            "avatar": u_info["avatar"],
+            "is_appended": is_target
+        }
         if type == "xp": item["level"] = get_level_from_xp(float(score))
         data.append(item)
         

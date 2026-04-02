@@ -19,6 +19,7 @@ class Config:
     JWT_SECRET = os.getenv("JWT_SECRET")
 
     FRONTEND_URL = os.getenv("FRONTEND_URL")
+    APP_DOMAIN = os.getenv("APP_DOMAIN", "http://localhost:8000")
     
     ALLOWED_ORIGINS = [
         FRONTEND_URL,

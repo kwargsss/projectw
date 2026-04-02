@@ -1,9 +1,10 @@
 import disnake
 import time
 import io
+import os
 
 from disnake.ext import commands
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from utils.leveling import (
     get_message_xp, get_voice_xp, get_level_from_xp, 
     get_xp_for_level, format_voice_time, get_progress_bar_stats,
@@ -66,14 +67,15 @@ class LevelingSystem(commands.Cog):
 
         target = inter.author
         user_id = target.id
+        user_id_str = str(user_id)
 
-        xp_raw = await self.bot.redis.zscore(REDIS_KEY_XP, str(user_id))
+        xp_raw = await self.bot.redis.zscore(REDIS_KEY_XP, user_id_str)
         if xp_raw is None:
             return await inter.edit_original_response(content=f"У {target.display_name} еще нет активности.")
 
         xp = float(xp_raw)
         level = get_level_from_xp(xp)
-        rank_idx = await self.bot.redis.zrevrank(REDIS_KEY_XP, str(user_id))
+        rank_idx = await self.bot.redis.zrevrank(REDIS_KEY_XP, user_id_str)
         rank_display = rank_idx + 1 if rank_idx is not None else "?"
 
         stats = await self.bot.redis.hgetall(f"user_stats:{user_id}")
@@ -89,6 +91,22 @@ class LevelingSystem(commands.Cog):
 
         bg_color = (30, 31, 34, 255)
         background = Image.new("RGBA", (800, 250), bg_color)
+
+        bg_filename_raw = await self.bot.redis.get(f"user_bg:{user_id_str}")
+        if bg_filename_raw:
+            bg_filename = bg_filename_raw.decode() if isinstance(bg_filename_raw, bytes) else str(bg_filename_raw)
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+            bg_path = os.path.join(project_root, "backend", "uploads", "backgrounds", bg_filename)
+            
+            if os.path.exists(bg_path):
+                try:
+                    custom_bg = Image.open(bg_path).convert("RGBA")
+                    custom_bg = ImageOps.fit(custom_bg, (800, 250), Image.Resampling.LANCZOS)
+                    dark_overlay = Image.new("RGBA", (800, 250), (0, 0, 0, 100))
+                    background = Image.alpha_composite(custom_bg, dark_overlay)
+                except Exception as e:
+                    print(f"[LEVELS] Ошибка открытия фона {bg_filename}: {e}")
+
         draw = ImageDraw.Draw(background)
 
         try:
@@ -109,9 +127,7 @@ class LevelingSystem(commands.Cog):
         background.paste(avatar, (40, 45), avatar)
 
         name_text = target.display_name
-
         max_name_width = 390 
-        
         ellipsis = "..."
         
         bbox = draw.textbbox((0, 0), name_text, font=font_large)
@@ -161,8 +177,7 @@ class LevelingSystem(commands.Cog):
                 "⭐ По уровню": "xp",
                 "💬 По сообщениям": "msg",
                 "🎙️ По голосу": "voice"
-            },
-            default="xp"
+            }
         )
     ):
         config = {
@@ -177,15 +192,33 @@ class LevelingSystem(commands.Cog):
         if not top:
             return await inter.response.send_message("Список пуст.", ephemeral=True)
 
+        user_id_str = str(inter.author.id)
+        in_top = any((uid.decode() if isinstance(uid, bytes) else str(uid)) == user_id_str for uid, _ in top)
+        
+        user_appended = False
+        target_rank = None
+        
+        if not in_top:
+            user_score_raw = await self.bot.redis.zscore(rk, user_id_str)
+            if user_score_raw is not None:
+                user_rank_raw = await self.bot.redis.zrevrank(rk, user_id_str)
+                user_score = float(user_score_raw)
+                target_rank = user_rank_raw + 1
+                user_appended = True
+                top.append((user_id_str.encode(), user_score))
+
         embed = disnake.Embed(title=title, color=disnake.Color.gold())
         if inter.guild.icon: embed.set_thumbnail(url=inter.guild.icon.url)
         
         description = ""
-        for i, (uid_raw, score_raw) in enumerate(top, 1):
+        for i, (uid_raw, score_raw) in enumerate(top):
             uid = uid_raw.decode() if isinstance(uid_raw, bytes) else str(uid_raw)
             score = int(float(score_raw))
             
-            medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, f"`{i}.` ")
+            is_target = user_appended and i == len(top) - 1
+            actual_rank = target_rank if is_target else i + 1
+            
+            medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(actual_rank, f"`{actual_rank}.` ")
             
             if category == "xp":
                 val = fmt.format(val=get_level_from_xp(score), score=score)
@@ -194,7 +227,11 @@ class LevelingSystem(commands.Cog):
             else:
                 val = fmt.format(score=score)
             
-            description += f"{medal} <@{uid}>\n└─ {val}\n\n"
+            if is_target:
+                description += "...\n\n"
+                
+            you_badge = " **(Вы)**" if uid == user_id_str else ""
+            description += f"{medal} <@{uid}>{you_badge}\n└─ {val}\n\n"
 
         embed.description = description
         embed.set_footer(text=f"Запросил {inter.author.display_name}", icon_url=inter.author.display_avatar.url)
