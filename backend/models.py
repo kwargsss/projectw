@@ -1,4 +1,5 @@
-from sqlalchemy import JSON, Boolean, Column, String, Integer, BigInteger, DateTime
+from sqlalchemy import Column, String, Integer, BigInteger, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
 
@@ -24,3 +25,25 @@ class MemberStats(Base):
     messages_count = Column(Integer, default=0)
     voice_minutes = Column(Integer, default=0)
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class Playlist(Base):
+    __tablename__ = "playlists"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    owner_id = Column(BigInteger, nullable=False, index=True) 
+    playlist_type = Column(String(20), default="personal", nullable=False) 
+    created_at = Column(DateTime, default=datetime.utcnow)
+    tracks = relationship("PlaylistTrack", back_populates="playlist", cascade="all, delete-orphan")
+
+
+class PlaylistTrack(Base):
+    __tablename__ = "playlist_tracks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    playlist_id = Column(Integer, ForeignKey("playlists.id", ondelete="CASCADE"), nullable=False)
+    position = Column(Integer, nullable=False) 
+    track_title = Column(String(255), nullable=False)
+    track_url = Column(String(1024), nullable=False)
+    source = Column(String(50), nullable=True)
+    playlist = relationship("Playlist", back_populates="tracks")

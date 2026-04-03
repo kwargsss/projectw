@@ -1,0 +1,43 @@
+server:
+  port: 2333
+  address: 127.0.0.1
+
+lavalink:
+  plugins:
+    - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.8.1" 
+      repository: "https://maven.lavalink.dev/releases"
+
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.0"
+      repository: "https://maven.lavalink.dev/releases"
+      
+  server:
+    password: "youshallnotpass"
+    sources:
+      youtube: false
+      bandcamp: true
+      soundcloud: true
+      twitch: true
+      http: true
+      local: false
+
+plugins:
+  youtube:
+    enabled: true
+    allowSearch: true
+    allowDirectVideoIds: true
+    allowDirectPlaylistIds: true
+    clients:
+      - MUSIC
+      - ANDROID_VR
+      - WEB
+      - WEBEMBEDDED
+
+  lavasrc:
+    sources:
+      spotify: false
+      yandexmusic: true
+      vkmusic: true
+    yandexmusic:
+      accessToken: "y0__xDMtrePAxje-AYgv9Ok-xYw0sHK4whjynwg52NJb1YySZTf2R2RLZOwTw"
+    vkmusic:
+      userToken: "vk1.a.3fNEZ6DGrlwNQ1TqaKEZLZv9DuudMuF-LU9pib60Y23v6LbM9ME8_XvQE5TgRzLNytRRxz5UIZq95TPnBZJgA4zJAS3pk8f0EAUO19bO1ILLHP_pvH4cpivspi1_tBh9Sfe3zn29iyPuEb0v2KNXgGSPa3UUDT3kQJpNXSQCwWwNJP_zfnHqwR7sbUU-Qs2XkNTsbJz9Qw5ofTFlPcB6tA"

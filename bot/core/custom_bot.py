@@ -16,9 +16,9 @@ class Bot(commands.Bot):
     async def start(self, *args, **kwargs):
         try:
             await self.redis.ping()
-            self.logger.info("[SYSTEM] Успешное подключение к Redis! 🟢")
+            self.logger.info("[SYSTEM] Успешное подключение к Redis!")
         except Exception as e:
-            self.logger.error(f"[ERROR] REDIS НЕ ОТВЕЧАЕТ: {e} 🔴")
+            self.logger.error(f"[ERROR] REDIS НЕ ОТВЕЧАЕТ: {e}")
         
         await super().start(*args, **kwargs)
 

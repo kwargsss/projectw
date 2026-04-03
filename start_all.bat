@@ -8,8 +8,8 @@ echo =========================================
 
 cd /d "%~dp0"
 
-@REM echo [1/4] Запуск сервера Lavalink...
-@REM start "Lavalink Server" cmd /k "cd lavalink && title Lavalink && java -jar Lavalink.jar"
+echo [1/4] Запуск сервера Lavalink...
+start "Lavalink Server" cmd /k "cd lavalink && title Lavalink && java -jar Lavalink.jar"
 
 timeout /t 3 /nobreak >nul
 
