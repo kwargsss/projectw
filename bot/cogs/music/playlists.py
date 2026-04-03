@@ -178,7 +178,6 @@ class MusicPlaylists(commands.Cog):
 
         async with self.bot.redis.pipeline(transaction=True) as pipe:
             for track in tracks_to_add:
-                # ИСПРАВЛЕНИЕ: Добавлен author
                 track_data = {"title": track.title, "author": track.author, "url": track.uri, "source": track.source}
                 pipe.rpush(tracks_key, json.dumps(track_data))
             await pipe.execute()

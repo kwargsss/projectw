@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, BigInteger, DateTime, ForeignKey
+from sqlalchemy import Column, String, Integer, BigInteger, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -47,3 +47,16 @@ class PlaylistTrack(Base):
     track_url = Column(String(1024), nullable=False)
     source = Column(String(50), nullable=True)
     playlist = relationship("Playlist", back_populates="tracks")
+
+class MusicStat(Base):
+    __tablename__ = 'music_stats'
+
+    id = Column(Integer, primary_key=True, index=True)
+    entity_id = Column(BigInteger, nullable=False, index=True)
+    entity_type = Column(String(10), nullable=False)
+    track_name = Column(String(255), nullable=False)
+    play_count = Column(Integer, default=0)
+
+    __table_args__ = (
+        UniqueConstraint('entity_id', 'entity_type', 'track_name', name='_entity_track_uc'),
+    )

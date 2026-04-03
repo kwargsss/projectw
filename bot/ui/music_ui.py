@@ -1,6 +1,5 @@
 import disnake
 import random
-import os
 
 
 class MusicPlayerView(disnake.ui.View):
@@ -39,16 +38,13 @@ class MusicPlayerView(disnake.ui.View):
 
     @disnake.ui.button(emoji="🔀", style=disnake.ButtonStyle.secondary, row=1)
     async def shuffle(self, button: disnake.ui.button, inter: disnake.MessageInteraction):
-        # Получаем всю очередь
         queue = await self.player.redis.lrange(self.player.queue_key, 0, -1)
         
         if len(queue) < 2:
             return await inter.response.send_message("❌ Слишком мало треков в очереди для перемешивания!", ephemeral=True)
         
-        # Перемешиваем список
         random.shuffle(queue)
         
-        # Удаляем старую очередь и записываем перемешанную за один проход
         async with self.player.redis.pipeline(transaction=True) as pipe:
             await pipe.delete(self.player.queue_key)
             await pipe.rpush(self.player.queue_key, *queue)
@@ -58,21 +54,17 @@ class MusicPlayerView(disnake.ui.View):
 
     @disnake.ui.button(emoji="🔁", style=disnake.ButtonStyle.secondary, row=1)
     async def loop(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
-        # Циклим режимы: 0 -> 1 -> 2 -> 0
         self.player.loop_mode = (self.player.loop_mode + 1) % 3
         await self.player.update_player_ui(self.player.current)
         await inter.response.send_message(f"Режим повтора изменен", ephemeral=True)
             
     @disnake.ui.button(emoji="🛸", style=disnake.ButtonStyle.secondary, row=1)
     async def autopilot_btn(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
-        # Переключаем статус
         self.player.autopilot = not self.player.autopilot
         
-        # Меняем цвет кнопки (Зеленая если вкл, Серая если выкл)
         button.style = disnake.ButtonStyle.success if self.player.autopilot else disnake.ButtonStyle.secondary
         
-        status = "ВКЛЮЧЕНА ✅" if self.player.autopilot else "ВЫКЛЮЧЕНА ❌"
+        status = "включена" if self.player.autopilot else "выключена"
         
-        # Обновляем сообщение плеера (чтобы обновилось поле "Моя волна")
         await self.player.update_player_ui(self.player.current)
         await inter.response.send_message(f"🛸 Моя волна {status}. Бот будет подбирать похожие треки, когда очередь закончится!", ephemeral=True)

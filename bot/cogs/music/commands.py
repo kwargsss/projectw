@@ -12,7 +12,6 @@ class MusicCommands(commands.Cog):
         self.bot = bot
 
     def is_original(self, track_title: str) -> bool:
-        """Проверяет, нет ли в названии трека запрещенных слов"""
         title_lower = track_title.lower()
         for word in BLACKLIST_WORDS:
             if word in title_lower:
@@ -36,7 +35,6 @@ class MusicCommands(commands.Cog):
 
         player.text_channel = inter.channel
 
-        # --- ЛОГИКА ПОИСКА "ЖЕСТКИЙ ОРИГИНАЛ" ---
         tracks = None
         fallback_track = None 
 
@@ -50,7 +48,6 @@ class MusicCommands(commands.Cog):
             
             for s_type in search_types:
                 try:
-                    # Пытаемся найти трек
                     found_tracks = await player.fetch_tracks(request, search_type=s_type)
                     
                     if found_tracks:
@@ -67,12 +64,9 @@ class MusicCommands(commands.Cog):
                                 break 
                         
                     if tracks:
-                        # Успешно нашли, прерываем каскад
                         break 
                         
                 except Exception as e:
-                    # Если сервис (например, Яндекс) упал с таймаутом, мы просто ловим ошибку
-                    # Пишем в лог и идем к следующему сервису в цикле (YouTube)
                     self.bot.logger.warning(f"Сервис {s_type} недоступен или выдал ошибку: {e}. Пробую следующий...")
                     continue
 
@@ -80,13 +74,11 @@ class MusicCommands(commands.Cog):
                 tracks = [fallback_track]
                 await inter.followup.send("⚠️ Чистый оригинал не найден, включено наиболее похожее совпадение.", ephemeral=True)
 
-        # ----------------------------------------
-
         if not tracks:
             return await inter.edit_original_response("❌ По твоему запросу ничего не найдено.")
 
         if isinstance(tracks, mafic.Playlist):
-            player.cancel_timeout() # <--- ОТМЕНЯЕМ ТАЙМЕР
+            player.cancel_timeout()
             for track in tracks.tracks:
                 await player.add_to_queue(track)
             
@@ -99,11 +91,11 @@ class MusicCommands(commands.Cog):
         track = tracks[0] if isinstance(tracks, list) else tracks
 
         if player.current:
-            player.cancel_timeout() # <--- ОТМЕНЯЕМ ТАЙМЕР
+            player.cancel_timeout()
             await player.add_to_queue(track)
             return await inter.edit_original_response(f"📝 Трек **{track.title}** добавлен в очередь!")
         else:
-            player.cancel_timeout() # <--- ОТМЕНЯЕМ ТАЙМЕР
+            player.cancel_timeout()
             await player.play(track)
             await player.update_player_ui(track)
             return await inter.edit_original_response("✅ Музыка начала играть!")

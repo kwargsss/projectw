@@ -30,7 +30,6 @@ class MusicCore(commands.Cog):
         if not player:
             return
             
-        # 1. Логика ручного кика бота (очистка)
         if member == self.bot.user and before.channel is not None and after.channel is None:
             queue_key = f"music:queue:{member.guild.id}"
             await self.bot.redis.delete(queue_key)
@@ -41,22 +40,18 @@ class MusicCore(commands.Cog):
                 except: pass
             return
 
-        # 2. Логика "Бот остался один в канале"
         if player.channel:
             non_bot_members = [m for m in player.channel.members if not m.bot]
             
             if not non_bot_members:
-                # Люди вышли -> даем 1 минуту перед выходом
                 player.cancel_timeout()
                 player.timeout_task = self.bot.loop.create_task(player.start_timeout(60))
                 if player.text_channel:
                     try: await player.text_channel.send("В голосовом канале никого нет. Уйду через 1 минуту 💤", delete_after=60)
                     except: pass
             else:
-                # Люди зашли -> проверяем, нужно ли отменить таймер
                 if getattr(player, "timeout_task", None):
                     player.cancel_timeout()
-                    # Если музыка не играет, возвращаем стандартные 5 минут
                     if not player.current:
                         player.timeout_task = self.bot.loop.create_task(player.start_timeout(300))
 
@@ -72,14 +67,25 @@ class MusicCore(commands.Cog):
                 elif player.loop_mode == 2:
                     await player.redis.rpush(player.queue_key, event.track.id)
 
+                try:
+                    track_name = f"{event.track.author} - {event.track.title}"[:200]
+                    
+                    await player.redis.zincrby(f"music_top:guild:{player.guild.id}", 1, track_name)
+                    
+                    if player.channel:
+                        for member in player.channel.members:
+                            if not member.bot:
+                                await player.redis.zincrby(f"music_top:user:{member.id}", 1, track_name)
+                                
+                except Exception as e:
+                    print(f"[STATS ERROR] Ошибка записи статистики: {e}")
+
             next_track = await player.play_next(finished_track=event.track)
             
             if next_track:
                 player.cancel_timeout()
                 await player.update_player_ui(next_track)
             else:
-                # --- ЛОГИКА АВТОПИЛОТА ---
-                # Если очередь пуста, но включена "Моя Волна"
                 if player.autopilot and ("FINISHED" in reason or "STOPPED" in reason or "FAILED" in reason):
                     
                     ap_track = await player.play_autopilot(event.track)
@@ -87,9 +93,8 @@ class MusicCore(commands.Cog):
                     if ap_track:
                         player.cancel_timeout()
                         await player.update_player_ui(ap_track)
-                        return # Выходим, автопилот спас вечеринку!
+                        return
 
-                # Если автопилот выключен или не смог найти трек:
                 await player.update_player_ui(None)
                 player.timeout_task = self.bot.loop.create_task(player.start_timeout(300))
 

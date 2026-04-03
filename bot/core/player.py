@@ -1,7 +1,7 @@
 import mafic
 import disnake
 import asyncio
-import random
+import re
 
 from config import Config
 from yandex_music import ClientAsync
@@ -25,10 +25,7 @@ class CustomPlayer(mafic.Player):
         self.ym_client = ClientAsync(token=ym_token)
 
     async def play_autopilot(self, finished_track: mafic.Track):
-        """Умный поиск похожих треков (МОЯ ВОЛНА + ЖЕСТКАЯ ЗАЩИТА ОТ ПОВТОРОВ)"""
-        import re
         
-        # Функция для очистки текста (оставляет только буквы и цифры для точного сравнения)
         def clean_text(text):
             return re.sub(r'[^a-zа-яё0-9]', '', str(text).lower())
 
@@ -47,26 +44,28 @@ class CustomPlayer(mafic.Player):
 
             if not track_id: return None
 
-            tracks_list = []
+            candidates = []
+            
             try:
-                # Врубаем нейросеть Яндекса (Мою Волну)
-                station = await self.ym_client.rotor_station_tracks(f"track:{track_id}")
-                if station and hasattr(station, 'sequence'):
-                    tracks_list = [getattr(item, 'track', item) for item in station.sequence]
-            except Exception:
-                pass
+                st1 = await self.ym_client.rotor_station_tracks(f"track:{track_id}")
+                if st1 and hasattr(st1, 'sequence'):
+                    candidates.extend([getattr(item, 'track', item) for item in st1.sequence])
+            except Exception: pass
+            
+            try:
+                st2 = await self.ym_client.rotor_station_tracks("user:onyourwave")
+                if st2 and hasattr(st2, 'sequence'):
+                    candidates.extend([getattr(item, 'track', item) for item in st2.sequence])
+            except Exception: pass
+            
+            try:
+                sim = await self.ym_client.tracks_similar(track_id)
+                if sim and hasattr(sim, 'similar_tracks'):
+                    candidates.extend(sim.similar_tracks)
+            except Exception: pass
 
-            if not tracks_list:
-                try:
-                    station = await self.ym_client.rotor_station_tracks("user:onyourwave")
-                    if station and hasattr(station, 'sequence'):
-                        tracks_list = [getattr(item, 'track', item) for item in station.sequence]
-                except Exception:
-                    return None
+            if not candidates: return None
 
-            if not tracks_list: return None
-
-            # 1. Собираем историю ИСКЛЮЧИТЕЛЬНО по названиям (счищая мусор и фиты)
             history = await self.redis.lrange(self.history_key, 0, 40)
             history_titles = []
             for h_id in history:
@@ -75,29 +74,23 @@ class CustomPlayer(mafic.Player):
                     history_titles.append(clean_text(dec.title))
                 except: pass
 
-            # Очищаем название трека, который только что играл
             finished_title_clean = clean_text(finished_track.title)
-
             BLACKLIST = ["remix", "cover", "bass", "slowed", "reverb", "tribute", "karaoke", "караоке", "ремикс", "кавер", "sped up", "speed up", "tiktok", "mashup", "мэшап"]
 
             track_to_play = None
             
-            for t in tracks_list:
+            for t in candidates:
                 try:
-                    if not t.artists: continue
+                    if not getattr(t, 'artists', None): continue
                         
-                    title_lower = t.title.lower()
+                    title_lower = getattr(t, 'title', '').lower()
                     if any(word in title_lower for word in BLACKLIST): continue
                         
-                    # Очищаем название предложенного трека
-                    clean_t_title = clean_text(t.title)
+                    clean_t_title = clean_text(title_lower)
                     
-                    # ЖЕСТКАЯ ЗАЩИТА: Сравниваем только чистые названия (БЕЗ АВТОРОВ)
-                    # Если название совпадает с тем, что только что играло ИЛИ было в истории - СКИП!
                     if clean_t_title == finished_title_clean: continue
                     if clean_t_title in history_titles: continue
 
-                    # Если трек прошел проверку, формируем запрос для Lavalink
                     artist_name = t.artists[0].name
                     track_to_play = f"{artist_name} {t.title}"
                     break 
@@ -113,10 +106,8 @@ class CustomPlayer(mafic.Player):
                 return track
 
         except Exception as e:
-            print(f"Ошибка в автопилоте: {e}")
             return None
         
-    # --- ОСТАЛЬНОЙ КОД (без изменений) ---
     async def start_timeout(self, timeout_seconds: int):
         try:
             await asyncio.sleep(timeout_seconds)
@@ -174,9 +165,8 @@ class CustomPlayer(mafic.Player):
             loop_status = ["Выкл", "🔂 Трек", "🔁 Очередь"][self.loop_mode]
             embed.add_field(name="🔄 Повтор", value=loop_status, inline=True)
             
-            # Добавили статус Автопилота в интерфейс
             ap_status = "Вкл 🛸" if self.autopilot else "Выкл"
-            embed.add_field(name="🛸 Моя Волна(может работать некорректно)", value=ap_status, inline=True)
+            embed.add_field(name="🛸 Моя Волна(работает плохо)", value=ap_status, inline=True)
 
             if track.artwork_url:
                 embed.set_thumbnail(url=track.artwork_url)
@@ -186,7 +176,8 @@ class CustomPlayer(mafic.Player):
             try:
                 await self.message.edit(embed=embed, view=view)
                 return
-            except: pass
+            except: 
+                pass
         
         if self.text_channel:
             self.message = await self.text_channel.send(embed=embed, view=view)
@@ -195,8 +186,14 @@ class CustomPlayer(mafic.Player):
         self.cancel_timeout()
         await self.redis.delete(self.queue_key)
         await self.redis.delete(self.history_key)
+        
         if self.message:
-            try: await self.message.delete()
-            except: pass
-        try: await self.destroy() 
-        except: pass
+            try: 
+                await self.message.delete()
+            except: 
+                pass
+        
+        try: 
+            await self.destroy() 
+        except: 
+            pass
