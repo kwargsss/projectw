@@ -1,9 +1,11 @@
 import json
 import asyncio
 import disnake
+import redis.exceptions
 
 from disnake.ext import commands
 from utils.embed_builder import build_v1_embed, build_v2_components
+
 
 class PubSubListenerCog(commands.Cog):
     def __init__(self, bot):
@@ -19,8 +21,10 @@ class PubSubListenerCog(commands.Cog):
                 await pubsub.subscribe("projectw_embed_commands")
                 self.bot.logger.info("[SYSTEM] Бот начал прослушивание канала Embed команд.")
 
-                async for message in pubsub.listen():
-                    if message['type'] == 'message':
+                while True:
+                    message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=60.0)
+                    
+                    if message and message['type'] == 'message':
                         try:
                             data = json.loads(message['data'])
                             channel_id = int(data.get('channel_id'))
@@ -33,7 +37,12 @@ class PubSubListenerCog(commands.Cog):
                             self.bot.logger.info(f"[ACTION] Embed успешно отправлен в канал {channel_id}.")
                         except Exception as e:
                             self.bot.logger.error(f"[ERROR] Ошибка сборки/отправки Embed: {e}")
-                            
+                    
+                    await pubsub.ping()
+                    
+            except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError) as e:
+                self.bot.logger.error(f"[ERROR] Потеряно соединение с Redis (V1 Listener): {e}. Переподключение через 5 секунд...")
+                await asyncio.sleep(5)
             except Exception as e:
                 self.bot.logger.error(f"[ERROR] Сбой PubSub Listener: {e}. Переподключение через 5 секунд...")
                 await asyncio.sleep(5)
@@ -46,8 +55,10 @@ class PubSubListenerCog(commands.Cog):
                 await pubsub.subscribe("projectw_embed_v2_commands")
                 self.bot.logger.info("[SYSTEM] Бот начал прослушивание канала V2 Embed команд.")
 
-                async for message in pubsub.listen():
-                    if message['type'] == 'message':
+                while True:
+                    message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=60.0)
+                    
+                    if message and message['type'] == 'message':
                         try:
                             data = json.loads(message['data'])
                             channel_id = int(data.get('channel_id'))
@@ -61,6 +72,12 @@ class PubSubListenerCog(commands.Cog):
                             self.bot.logger.info(f"[ACTION] Настоящий V2 Embed успешно отправлен в {channel_id}.")
                         except Exception as e:
                             self.bot.logger.error(f"[ERROR] Ошибка сборки V2 Embed: {e}")
+
+                    await pubsub.ping()
+
+            except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError) as e:
+                self.bot.logger.error(f"[ERROR] Потеряно соединение с Redis (V2 Listener): {e}. Переподключение через 5 секунд...")
+                await asyncio.sleep(5)
 
             except Exception as e:
                 self.bot.logger.error(f"[ERROR] Сбой PubSub V2 Listener: {e}. Переподключение через 5 секунд...")

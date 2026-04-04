@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, BigInteger, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, String, Integer, BigInteger, DateTime, ForeignKey, UniqueConstraint, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -60,3 +60,12 @@ class MusicStat(Base):
     __table_args__ = (
         UniqueConstraint('entity_id', 'entity_type', 'track_name', name='_entity_track_uc'),
     )
+
+class PrivateVoiceConfig(Base):
+    __tablename__ = 'private_voice_configs'
+
+    guild_id = Column(BigInteger, primary_key=True, index=True)
+    is_enabled = Column(Boolean, default=False)
+    template = Column(String(100), default="🎧 Канал {user}")
+    default_limit = Column(Integer, default=0)
+    default_bitrate = Column(Integer, default=64000)

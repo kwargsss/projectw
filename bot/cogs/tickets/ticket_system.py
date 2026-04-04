@@ -93,32 +93,48 @@ class TicketCog(commands.Cog):
         await self.bot.redis.delete(f"ticket_messages:{channel.id}")
 
     async def web_control_listener(self):
+        import redis.exceptions
+        import asyncio
+
         await self.bot.wait_until_ready()
-        pubsub = self.bot.redis.pubsub()
-        await pubsub.subscribe("web_ticket_controls")
         
-        async for message in pubsub.listen():
-            if message['type'] == 'message':
-                try:
-                    data = json.loads(message['data'])
-                    action = data.get("action")
-                    channel = self.bot.get_channel(int(data.get("ticket_id")))
-                    if not channel: continue
+        while True:
+            try:
+                pubsub = self.bot.redis.pubsub()
+                await pubsub.subscribe("web_ticket_controls")
+                
+                while True:
+                    message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=60.0)
+                    
+                    if message and message['type'] == 'message':
+                        try:
+                            data = json.loads(message['data'])
+                            action = data.get("action")
+                            channel = self.bot.get_channel(int(data.get("ticket_id")))
+                            if not channel: continue
 
-                    if action == "send_message":
-                        embed = disnake.Embed(description=data["content"], color=0x8B5CF6)
-                        embed.set_footer(text=f"Сотрудник поддержки: {data['author_name']}", icon_url=data.get("author_avatar"))
-                        embed.timestamp = disnake.utils.utcnow()
-                        await channel.send(embed=embed)
-                    elif action == "close":
-                        await self._change_ticket_status(channel, "closed", f"**{data['admin_name']}** (Web)")
-                    elif action == "open":
-                        await self._change_ticket_status(channel, "open", f"**{data['admin_name']}** (Web)")
-                    elif action == "delete":
-                        await self._archive_ticket(channel, f"{data['admin_name']} (Web)")
-
-                except Exception as e:
-                    self.bot.logger.error(f"[Ticket Web Control Error]: {e}")
+                            if action == "send_message":
+                                embed = disnake.Embed(description=data["content"], color=0x8B5CF6)
+                                embed.set_footer(text=f"Сотрудник поддержки: {data['author_name']}", icon_url=data.get("author_avatar"))
+                                embed.timestamp = disnake.utils.utcnow()
+                                await channel.send(embed=embed)
+                            elif action == "close":
+                                await self._change_ticket_status(channel, "closed", f"**{data['admin_name']}** (Web)")
+                            elif action == "open":
+                                await self._change_ticket_status(channel, "open", f"**{data['admin_name']}** (Web)")
+                            elif action == "delete":
+                                await self._archive_ticket(channel, f"{data['admin_name']} (Web)")
+                        except Exception as inner_e:
+                            self.bot.logger.error(f"[Ticket Web Control Processing Error]: {inner_e}")
+                            
+                    await pubsub.ping()
+                            
+            except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError) as e:
+                self.bot.logger.error(f"[Ticket Web Control PubSub Error]: Соединение с Redis потеряно ({e}). Переподключение через 5 секунд...")
+                await asyncio.sleep(5)
+            except Exception as e:
+                self.bot.logger.error(f"[Ticket Web Control PubSub Error]: Неизвестная ошибка ({e}). Переподключение через 5 секунд...")
+                await asyncio.sleep(5)
 
     @commands.Cog.listener("on_button_click")
     async def ticket_button_handler(self, inter: disnake.MessageInteraction):

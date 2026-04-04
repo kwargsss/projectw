@@ -10,7 +10,9 @@ class Bot(commands.Bot):
         super().__init__(*args, **kwargs)
         self.logger = setup_logger("bot", Config.TG_BOT_TOKEN, Config.TG_CHAT_ID)
         self.redis = redis.from_url(
-            Config.REDIS_URL, decode_responses=True, health_check_interval=30, socket_connect_timeout=2
+            Config.REDIS_URL, 
+            decode_responses=True,
+            health_check_interval=30
         )
 
     async def start(self, *args, **kwargs):

@@ -12,7 +12,7 @@ from config import Config
 from database import init_db
 from core.limiter import limiter
 from core.logger import setup_logger
-from routers import auth, bot, tickets, users, levels, music
+from routers import auth, bot, tickets, users, levels, music, private_voice
 
 app = FastAPI(title="Discord Bot Dashboard API")
 
@@ -39,6 +39,8 @@ app.include_router(tickets.router)
 app.include_router(users.router)
 app.include_router(bot.router)
 app.include_router(levels.router)
+app.include_router(music.router)
+app.include_router(private_voice.router)
 
 @app.on_event("startup")
 async def startup_event():

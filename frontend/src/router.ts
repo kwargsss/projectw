@@ -9,8 +9,19 @@ const routes = [
 	},
 	{
 		path: '/profile/:id',
-		name: 'UserDashboard',
 		component: () => import('./views/UserDashboard.vue'),
+		children: [
+			{
+				path: '',
+				name: 'UserOverview',
+				component: () => import('./views/profile/Overview.vue'),
+			},
+			{
+				path: 'music',
+				name: 'UserMusic',
+				component: () => import('./views/profile/Music.vue'),
+			},
+		],
 	},
 	{
 		path: '/dashboard',
@@ -50,6 +61,11 @@ const routes = [
 				path: 'tickets/:type/:id',
 				name: 'TicketChat',
 				component: () => import('./views/TicketChat.vue'),
+			},
+			{
+				path: 'private-voice',
+				name: 'AdminPrivateVoice',
+				component: () => import('./views/AdminPrivateVoice.vue'),
 			},
 		],
 	},

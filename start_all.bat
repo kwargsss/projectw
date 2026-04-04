@@ -11,7 +11,7 @@ cd /d "%~dp0"
 echo [1/4] Запуск сервера Lavalink...
 start "Lavalink Server" cmd /k "cd lavalink && title Lavalink && java -jar Lavalink.jar"
 
-timeout /t 3 /nobreak >nul
+timeout /t 5 /nobreak >nul
 
 echo [2/4] Запускаем FastAPI Бэкенд
 start "FastAPI Backend" cmd /k "cd backend && uvicorn main:app --reload --port 8000"
