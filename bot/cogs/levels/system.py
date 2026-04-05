@@ -3,6 +3,7 @@ import time
 import io
 import os
 
+from ui.leveling_ui import LeaderboardView
 from disnake.ext import commands
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from utils.leveling import (
@@ -85,7 +86,6 @@ class LevelingSystem(commands.Cog):
             return val.decode() if isinstance(val, bytes) else str(val)
 
         v_mins = int(get_stat("voice_mins"))
-        messages = get_stat("messages")
 
         percentage, xp_have, xp_needed = get_progress_bar_stats(xp, level)
 
@@ -127,7 +127,7 @@ class LevelingSystem(commands.Cog):
         background.paste(avatar, (40, 45), avatar)
 
         name_text = target.display_name
-        max_name_width = 390 
+        max_name_width = 520 
         ellipsis = "..."
         
         bbox = draw.textbbox((0, 0), name_text, font=font_large)
@@ -145,11 +145,24 @@ class LevelingSystem(commands.Cog):
 
         draw.text((230, 45), name_text, font=font_large, fill=(255, 255, 255, 255))
 
-        stats_text = f"Сообщений: {messages}   |   В войсе: {format_voice_time(v_mins)}"
-        draw.text((230, 105), stats_text, font=font_small, fill=(149, 165, 166, 255))
+        start_x = 230
+        y_base = 170
+        text_color = (88, 101, 242, 255)
 
-        draw.text((760, 45), f"Уровень {level}", font=font_med, fill=(88, 101, 242, 255), anchor="ra") 
-        draw.text((760, 80), f"Ранг #{rank_display}", font=font_small, fill=(149, 165, 166, 255), anchor="ra")
+        draw.text((start_x, y_base), "Ранг #", font=font_med, fill=text_color, anchor="ls")
+        start_x += int(draw.textlength("Ранг #", font=font_med)) + 4
+        
+        draw.text((start_x, y_base), str(rank_display), font=font_large, fill=text_color, anchor="ls")
+        start_x += int(draw.textlength(str(rank_display), font=font_large)) + 30
+        
+        draw.text((start_x, y_base), "Уровень ", font=font_med, fill=text_color, anchor="ls")
+        start_x += int(draw.textlength("Уровень ", font=font_med)) + 4
+        
+        draw.text((start_x, y_base), str(level), font=font_large, fill=text_color, anchor="ls")
+
+        voice_text = f"Голос: {format_voice_time(v_mins)}"
+        draw.text((760, 120), voice_text, font=font_small, fill=(181, 186, 193, 255), anchor="ra")
+
         xp_text = f"{int(xp_have)} / {xp_needed} XP"
         draw.text((760, 150), xp_text, font=font_small, fill=(181, 186, 193, 255), anchor="ra")
 
@@ -168,75 +181,17 @@ class LevelingSystem(commands.Cog):
         await inter.edit_original_response(file=file)
 
     @commands.slash_command(name="лидеры", description="Таблицы лидеров сервера")
-    async def leaderboard(
-        self, 
-        inter: disnake.ApplicationCommandInteraction,
-        category: str = commands.Param(
-            name="категория",
-            choices={
-                "⭐ По уровню": "xp",
-                "💬 По сообщениям": "msg",
-                "🎙️ По голосу": "voice"
-            }
+    async def leaderboard(self, inter: disnake.ApplicationCommandInteraction):
+        await inter.response.defer()
+        
+        view = LeaderboardView(self.bot, inter.author)
+        await view.generate_components()
+        
+        await inter.edit_original_response(
+            embed=None,
+            view=view,
+            flags=disnake.MessageFlags(is_components_v2=True)
         )
-    ):
-        config = {
-            "xp": (REDIS_KEY_XP, "⭐ Топ по уровню", "Ур. {val} • {score} XP"),
-            "msg": (REDIS_KEY_MESSAGES, "💬 Топ по сообщениям", "{score} сообщ."),
-            "voice": (REDIS_KEY_VOICE, "🎙️ Топ по голосу", "{val}")
-        }
-        
-        rk, title, fmt = config[category]
-        top = await self.bot.redis.zrevrange(rk, 0, 9, withscores=True)
-        
-        if not top:
-            return await inter.response.send_message("Список пуст.", ephemeral=True)
-
-        user_id_str = str(inter.author.id)
-        in_top = any((uid.decode() if isinstance(uid, bytes) else str(uid)) == user_id_str for uid, _ in top)
-        
-        user_appended = False
-        target_rank = None
-        
-        if not in_top:
-            user_score_raw = await self.bot.redis.zscore(rk, user_id_str)
-            if user_score_raw is not None:
-                user_rank_raw = await self.bot.redis.zrevrank(rk, user_id_str)
-                user_score = float(user_score_raw)
-                target_rank = user_rank_raw + 1
-                user_appended = True
-                top.append((user_id_str.encode(), user_score))
-
-        embed = disnake.Embed(title=title, color=disnake.Color.gold())
-        if inter.guild.icon: embed.set_thumbnail(url=inter.guild.icon.url)
-        
-        description = ""
-        for i, (uid_raw, score_raw) in enumerate(top):
-            uid = uid_raw.decode() if isinstance(uid_raw, bytes) else str(uid_raw)
-            score = int(float(score_raw))
-            
-            is_target = user_appended and i == len(top) - 1
-            actual_rank = target_rank if is_target else i + 1
-            
-            medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(actual_rank, f"`{actual_rank}.` ")
-            
-            if category == "xp":
-                val = fmt.format(val=get_level_from_xp(score), score=score)
-            elif category == "voice":
-                val = fmt.format(val=format_voice_time(score))
-            else:
-                val = fmt.format(score=score)
-            
-            if is_target:
-                description += "...\n\n"
-                
-            you_badge = " **(Вы)**" if uid == user_id_str else ""
-            description += f"{medal} <@{uid}>{you_badge}\n└─ {val}\n\n"
-
-        embed.description = description
-        embed.set_footer(text=f"Запросил {inter.author.display_name}", icon_url=inter.author.display_avatar.url)
-        
-        await inter.response.send_message(embed=embed)
 
 def setup(bot):
     bot.add_cog(LevelingSystem(bot))

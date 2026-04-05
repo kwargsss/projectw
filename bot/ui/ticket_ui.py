@@ -2,23 +2,73 @@ import disnake
 
 from config import Config
 
-class TicketControlView(disnake.ui.View):
-    def __init__(self, is_closed: bool = False):
+
+class TicketV2View(disnake.ui.View):
+    def __init__(self, is_closed: bool, text: str, color: int = 0x8B5CF6, disabled: bool = False):
         super().__init__(timeout=None)
+        self.is_closed = is_closed
+        
         if not is_closed:
             self.add_item(disnake.ui.Button(
                 label="Закрыть Тикет", style=disnake.ButtonStyle.secondary, 
-                custom_id="ticket_close", emoji="🔒"
+                custom_id="ticket_close", emoji="🔒", disabled=disabled
             ))
         else:
             self.add_item(disnake.ui.Button(
                 label="Открыть Тикет", style=disnake.ButtonStyle.success, 
-                custom_id="ticket_open", emoji="🔓"
+                custom_id="ticket_open", emoji="🔓", disabled=disabled
             ))
             self.add_item(disnake.ui.Button(
                 label="Удалить Тикет", style=disnake.ButtonStyle.danger, 
-                custom_id="ticket_delete", emoji="🗑️"
+                custom_id="ticket_delete", emoji="🗑️", disabled=disabled
             ))
+            
+        self.v2_components = [
+            disnake.ui.Container(
+                disnake.ui.TextDisplay(text),
+                disnake.ui.ActionRow(*self.children),
+                accent_colour=disnake.Colour(color)
+            )
+        ]
+
+    def to_components(self):
+        return [c.to_component_dict() for c in self.v2_components]
+
+class TicketSelect(disnake.ui.StringSelect):
+    def __init__(self):
+        options = [
+            disnake.SelectOption(label="Серверный", value="server", description="Вопросы по игровому серверу", emoji="🎮"),
+            disnake.SelectOption(label="Технический", value="tech", description="Ошибки, баги, проблемы с донатом", emoji="🛠️")
+        ]
+        super().__init__(placeholder="Выберите категорию обращения...", min_values=1, max_values=1, options=options, custom_id="ticket_create_select")
+
+    async def callback(self, inter: disnake.MessageInteraction):
+        await inter.response.send_modal(modal=TicketModal(self.values[0]))
+
+class TicketCreateView(disnake.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.select = TicketSelect()
+        self.add_item(self.select)
+        
+        text = (
+            "## 🎧 Центр поддержки\n"
+            "> Добро пожаловать!\n\n"
+            "Если у вас возникла проблема или вопрос, выберите подходящую категорию в выпадающем меню ниже. "
+            "Бот автоматически создаст приватный канал для общения с администрацией.\n\n"
+            "*KwargsssBot • Support System*"
+        )
+        
+        self.v2_components = [
+            disnake.ui.Container(
+                disnake.ui.TextDisplay(text),
+                disnake.ui.ActionRow(self.select),
+                accent_colour=disnake.Colour(0x8B5CF6)
+            )
+        ]
+
+    def to_components(self):
+        return [c.to_component_dict() for c in self.v2_components]
 
 class TicketModal(disnake.ui.Modal):
     def __init__(self, ticket_type: str):
@@ -62,17 +112,6 @@ class TicketModal(disnake.ui.Modal):
             name=channel_name, category=category, overwrites=overwrites, topic=f"Тикет #{ticket_num} от {inter.author.id}"
         )
 
-        embed = disnake.Embed(title=f"🎫 {title}", description=f"**Детали обращения:**\n```text\n{desc}\n```", color=0x8B5CF6)
-        embed.set_author(name=f"Создатель: {inter.author.display_name}", icon_url=inter.author.display_avatar.url if inter.author.display_avatar else None)
-        
-        if media: embed.add_field(name="📎 Прикрепленные материалы", value=media, inline=False)
-        embed.add_field(name="👤 Пользователь", value=inter.author.mention, inline=True)
-        embed.add_field(name="🛠️ Статус", value="🟢 Ожидает ответа", inline=True)
-        embed.set_footer(text=f"ID Тикета: {ticket_num} • Ожидайте ответа поддержки")
-        embed.timestamp = disnake.utils.utcnow()
-
-        await ticket_channel.send(content=f"{inter.author.mention}", embed=embed, view=TicketControlView(is_closed=False))
-
         ticket_data = {
             "id": str(ticket_channel.id), "name": channel_name, "type": self.ticket_type,
             "status": "open", "creator_id": str(inter.author.id), "creator_name": inter.author.display_name,
@@ -80,20 +119,19 @@ class TicketModal(disnake.ui.Modal):
         }
         await bot.redis.hset(f"ticket:{ticket_channel.id}", mapping=ticket_data)
 
+        type_str = "Серверный Тикет" if self.ticket_type == "server" else "Технический Тикет"
+        text = f"## 🎫 {title}\n"
+        text += f"👤 **Создатель:** {inter.author.mention}\n"
+        text += f"🛠️ **Статус:** 🟢 Ожидает ответа\n\n"
+        text += f"> {desc}\n\n"
+        if media:
+            text += f"📎 **Материалы:** {media}\n\n"
+        text += f"*{type_str} • ID: {ticket_num} • Ожидайте ответа поддержки*"
+
+        view = TicketV2View(is_closed=False, text=text, color=0x8B5CF6)
+        msg = await ticket_channel.send(view=view, flags=disnake.MessageFlags(is_components_v2=True))
+
+        await bot.redis.set(f"v2_msg_text:{msg.id}", text)
+        await bot.redis.set(f"v2_msg_color:{msg.id}", str(0x8B5CF6))
+
         await inter.edit_original_message(content=f"✅ Ваш тикет успешно создан: {ticket_channel.mention}")
-
-class TicketSelect(disnake.ui.StringSelect):
-    def __init__(self):
-        options = [
-            disnake.SelectOption(label="Серверный", value="server", description="Вопросы по игровому серверу", emoji="🎮"),
-            disnake.SelectOption(label="Технический", value="tech", description="Ошибки, баги, проблемы с донатом", emoji="🛠️")
-        ]
-        super().__init__(placeholder="Выберите категорию обращения...", min_values=1, max_values=1, options=options, custom_id="ticket_create_select")
-
-    async def callback(self, inter: disnake.MessageInteraction):
-        await inter.response.send_modal(modal=TicketModal(self.values[0]))
-
-class TicketCreateView(disnake.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.add_item(TicketSelect())

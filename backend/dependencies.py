@@ -1,9 +1,30 @@
 import jwt
 
-from fastapi import Request, HTTPException, Depends
+from fastapi import Request, HTTPException, Depends, WebSocket
 from sqlalchemy.ext.asyncio import AsyncSession
 from config import Config
 from database import get_db
+
+async def get_user_from_token_ws(websocket: WebSocket):
+    token = websocket.cookies.get("access_token")
+    
+    if not token:
+        token = websocket.query_params.get("token")
+        
+    if not token:
+        await websocket.close(code=1008, reason="Не авторизован")
+        return None
+        
+    try: 
+        payload = jwt.decode(token, Config.JWT_SECRET, algorithms=["HS256"])
+        user_role = payload.get("role")
+        if not user_role or user_role not in ["support", "admin", "superadmin"]:
+            await websocket.close(code=1008, reason="Нет прав доступа")
+            return None
+        return payload
+    except Exception:
+        await websocket.close(code=1008, reason="Токен недействителен")
+        return None
 
 def get_user_from_token(request: Request):
     token = request.cookies.get("access_token")

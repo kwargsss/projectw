@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db, redis_client
-from dependencies import verify_support_access
+from dependencies import verify_support_access, get_user_from_token_ws
 
 router = APIRouter(prefix="/api/tickets", tags=["Tickets"])
 
@@ -90,6 +90,10 @@ async def send_ticket_message(ticket_id: str, request: Request, payload: dict, d
 
 @router.websocket("/ws/{ticket_id}")
 async def websocket_ticket_chat(websocket: WebSocket, ticket_id: str):
+    user_info = await get_user_from_token_ws(websocket)
+    if not user_info:
+        return 
+
     await ticket_manager.connect(websocket, ticket_id)
     pubsub = redis_client.pubsub()
     await pubsub.subscribe(f"ticket_chat:{ticket_id}")

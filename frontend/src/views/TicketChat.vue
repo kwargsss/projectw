@@ -37,25 +37,35 @@ const scrollToBottom = async () => {
     }
 }
 
-// ДОБАВЛЕНО: Универсальная функция форматирования сообщений (админского ответа)
 const formatMessage = (msg: any) => {
-    // Делаем копию, чтобы не мутировать стейт непредсказуемо
     const data = { ...msg }
     if (data.is_bot && data.embeds && data.embeds.length > 0) {
         const embed = data.embeds[0]
-        if (embed.footer && embed.footer.text && embed.footer.text.startsWith('Сотрудник поддержки:')) {
-            data.author = embed.footer.text.replace('Сотрудник поддержки:', '').trim()
-            data.avatar = embed.footer.icon_url || '/bot-avatar.png'
-            data.is_bot = false
-            data.is_admin_reply = true
-            if (embed.description) data.content = embed.description
-            data.embeds = [] 
+        
+        if (embed.description && embed.description.includes('Сообщение от поддержки')) {
+            const authorMatch = embed.description.match(/\*([^*]+)\*$/);
+            if (authorMatch) {
+                data.author = authorMatch[1].replace(/\(Web\)/g, '').trim();
+            } else {
+                data.author = 'Сотрудник поддержки';
+            }
+            
+            data.avatar = '/bot-avatar.png';
+            data.is_bot = false;
+            data.is_admin_reply = true;
+            
+            let cleanText = embed.description
+                .replace(/## 💬 Сообщение от поддержки\n/g, '')
+                .replace(/^> /gm, '')
+                .replace(new RegExp('\\n\\n\\*' + (authorMatch ? authorMatch[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '[^*]+') + '\\*$'), '');
+            
+            data.content = cleanText.trim();
+            data.embeds = [];
         }
     }
     return data
 }
 
-// ДОБАВЛЕНО: Загрузка всей прошлой истории тикета
 const fetchHistory = async () => {
     try {
         const res = await fetch(`${API_URL}/tickets/${ticketId}/messages`, { credentials: 'include' })
@@ -70,14 +80,12 @@ const fetchHistory = async () => {
 }
 
 const connectWebSocket = () => {
-    const wsUrl = API_URL.replace(/^http/, 'ws') + `/ws/tickets/${ticketId}`
+    const wsUrl = API_URL.replace(/^http/, 'ws') + `/tickets/ws/${ticketId}`
     
     ws = new WebSocket(wsUrl)
     
     ws.onmessage = (event) => {
         const data = formatMessage(JSON.parse(event.data))
-        
-        // Предотвращение дубликатов (если сообщение уже есть в истории)
         if (!messages.value.find(m => m.id === data.id && !m.isTemp)) {
             messages.value = messages.value.filter(m => !m.isTemp)
             messages.value.push(data)
@@ -150,6 +158,8 @@ const performAction = async (action: 'close' | 'open' | 'delete' | 'force_delete
 const parseMarkdown = (text: string) => {
     if (!text) return ''
     return text
+        .replace(/^##\s+(.*)$/gm, '<h2 class="text-lg font-bold text-white mb-2 mt-1">$1</h2>')
+        .replace(/^>\s+(.*)$/gm, '<blockquote class="border-l-2 border-purple-500 pl-3 py-1 my-2 bg-gray-800/30 text-gray-300 italic">$1</blockquote>')
         .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>')
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
         .replace(/~~(.*?)~~/g, '<del>$1</del>')
@@ -178,7 +188,6 @@ onMounted(async () => {
     }
 
     if (ticketStatus.value !== 'archived') {
-        // ДОБАВЛЕНО: Сначала загружаем историю, затем подключаем WebSocket
         await fetchHistory()
         connectWebSocket()
     }
