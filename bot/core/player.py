@@ -12,8 +12,9 @@ class CustomPlayer(mafic.Player):
     def __init__(self, client: disnake.Client, channel: disnake.VoiceChannel):
         super().__init__(client, channel)
         self.redis = self.client.redis
-        self.queue_key = f"music:queue:{self.guild.id}"
-        self.history_key = f"music:history:{self.guild.id}"
+        
+        self.queue_key = f"music:queue:{self.channel.id}"
+        self.history_key = f"music:history:{self.channel.id}"
         
         self.message = None 
         self.text_channel = None 
@@ -115,7 +116,7 @@ class CustomPlayer(mafic.Player):
             if self.text_channel:
                 try: await self.text_channel.send("💤 Я покинул канал из-за неактивности.", delete_after=15)
                 except: pass
-            await self.destroy() 
+            await self.teardown() 
         except asyncio.CancelledError:
             pass
 
@@ -166,7 +167,10 @@ class CustomPlayer(mafic.Player):
             embed.add_field(name="🔄 Повтор", value=loop_status, inline=True)
             
             ap_status = "Вкл 🛸" if self.autopilot else "Выкл"
-            embed.add_field(name="🛸 Моя Волна(работает плохо)", value=ap_status, inline=True)
+            embed.add_field(name="🛸 Моя Волна", value=ap_status, inline=True)
+
+            if self.channel:
+                embed.add_field(name="📍 Привязан к каналу", value=self.channel.mention, inline=True)
 
             if track.artwork_url:
                 embed.set_thumbnail(url=track.artwork_url)
@@ -184,16 +188,18 @@ class CustomPlayer(mafic.Player):
 
     async def teardown(self):
         self.cancel_timeout()
+        
+        worker_id = getattr(self.client, "worker_id", None)
+        if worker_id:
+            await self.redis.delete(f"vc_worker:{self.channel.id}")
+            await self.redis.srem(f"guild_active_workers:{self.guild.id}", worker_id)
+
         await self.redis.delete(self.queue_key)
         await self.redis.delete(self.history_key)
         
         if self.message:
-            try: 
-                await self.message.delete()
-            except: 
-                pass
+            try: await self.message.delete()
+            except: pass
         
-        try: 
-            await self.destroy() 
-        except: 
-            pass
+        try: await self.destroy() 
+        except: pass

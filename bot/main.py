@@ -1,8 +1,12 @@
 import os
 import disnake
+import warnings
 
 from core.custom_bot import Bot
 from config import Config
+
+
+warnings.filterwarnings("ignore", message=".*The version of Lavalink you are using is not supported by Mafic.*")
 
 bot = Bot(
     command_prefix="!", 

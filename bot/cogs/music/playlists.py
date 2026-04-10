@@ -328,7 +328,6 @@ class MusicPlaylists(commands.Cog):
             desc += f"**{i+1}.** {author} — {d['title']}\n"
             
         embed.description = desc
-        # Изменено отображение общего количества
         embed.set_footer(text=f"Всего треков: {len(tracks)}/50")
         await inter.edit_original_response(embed=embed)
 
@@ -348,35 +347,44 @@ class MusicPlaylists(commands.Cog):
         raw_tracks = await self.bot.redis.lrange(tracks_key, 0, -1)
         if not raw_tracks: return await inter.edit_original_response(f"❌ Плейлист **{playlist}** пуст.")
 
-        if not inter.guild.voice_client:
-            player = await inter.author.voice.channel.connect(cls=CustomPlayer)
-            await inter.guild.change_voice_state(channel=inter.author.voice.channel, self_deaf=True)
-        else:
-            player = inter.guild.voice_client
-            if player.channel != inter.author.voice.channel:
-                return await inter.edit_original_response(f"❌ Я уже занят в канале {player.channel.mention}!")
+        voice_channel_id = inter.author.voice.channel.id
+        music_cog = self.bot.get_cog("MusicCommands")
+        
+        if not music_cog:
+            return await inter.edit_original_response("❌ Модуль музыки еще не загружен.")
 
-        player.text_channel = inter.channel
-        player.cancel_timeout()
+        worker_id = await music_cog.get_worker_for_channel(inter.guild.id, voice_channel_id)
+        if not worker_id:
+            return await inter.edit_original_response("❌ Достигнут лимит музыкальных ботов для этого сервера.")
 
         await inter.edit_original_response(f"🔄 Загружаю {len(raw_tracks)} треков из **{playlist}**... Ожидайте.")
 
+        node = self.bot.pool.nodes[0]
+        queue_key = f"music:queue:{voice_channel_id}" 
         loaded_count = 0
+        
         for track_json in raw_tracks:
             try:
                 data = json.loads(track_json)
-                resolved_tracks = await player.fetch_tracks(data["url"], search_type="ytsearch")
+                resolved_tracks = await node.fetch_tracks(data["url"], search_type="ytsearch")
                 if resolved_tracks:
                     track = resolved_tracks[0] if isinstance(resolved_tracks, list) else resolved_tracks
-                    await player.add_to_queue(track)
+                    await self.bot.redis.rpush(queue_key, track.id)
                     loaded_count += 1
             except: pass 
 
-        if loaded_count == 0: return await inter.edit_original_response("❌ Не удалось загрузить ни один трек.")
+        if loaded_count == 0: 
+            await self.bot.redis.delete(f"vc_worker:{voice_channel_id}")
+            await self.bot.redis.srem(f"guild_active_workers:{inter.guild.id}", worker_id)
+            return await inter.edit_original_response("❌ Не удалось загрузить ни один трек.")
 
-        if not player.current:
-            track = await player.play_next()
-            await player.update_player_ui(track)
+        payload = {
+            "action": "connect_and_play",
+            "guild_id": inter.guild.id,
+            "voice_channel_id": voice_channel_id,
+            "text_channel_id": inter.channel.id
+        }
+        await self.bot.redis.publish(f"worker_cmd:{worker_id}", json.dumps(payload))
 
         await inter.edit_original_response(f"▶️ Плейлист **{playlist}** включен! В очередь добавлено {loaded_count} треков.")
 

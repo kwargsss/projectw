@@ -20,3 +20,6 @@ class Config:
     LAVALINK_PASSWORD = os.getenv("LAVALINK_PASSWORD")
 
     YANDEX_TOKEN = os.getenv("YANDEX_TOKEN")
+
+    _raw_tokens = os.getenv("WORKER_TOKENS", "")
+    WORKER_TOKENS = [t.strip() for t in _raw_tokens.split(",") if t.strip()]

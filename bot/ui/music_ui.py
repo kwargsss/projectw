@@ -7,14 +7,18 @@ class MusicPlayerView(disnake.ui.View):
         super().__init__(timeout=None)
         self.player = player
 
+    async def interaction_check(self, inter: disnake.MessageInteraction) -> bool:
+        if not inter.author.voice or inter.author.voice.channel.id != self.player.channel.id:
+            await inter.response.send_message("❌ Вы должны находиться в голосовом канале с ботом, чтобы управлять музыкой!", ephemeral=True)
+            return False
+        return True
+
     @disnake.ui.button(emoji="⏮️", style=disnake.ButtonStyle.secondary, row=0)
     async def previous(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
         await inter.response.defer()
         track = await self.player.play_previous()
-        if track:
-            await self.player.update_player_ui(track)
-        else:
-            await inter.followup.send("История пуста!", ephemeral=True)
+        if track: await self.player.update_player_ui(track)
+        else: await inter.followup.send("История пуста!", ephemeral=True)
 
     @disnake.ui.button(emoji="⏯️", style=disnake.ButtonStyle.primary, row=0)
     async def pause_resume(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
@@ -37,19 +41,15 @@ class MusicPlayerView(disnake.ui.View):
         await self.player.teardown()
 
     @disnake.ui.button(emoji="🔀", style=disnake.ButtonStyle.secondary, row=1)
-    async def shuffle(self, button: disnake.ui.button, inter: disnake.MessageInteraction):
+    async def shuffle(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
         queue = await self.player.redis.lrange(self.player.queue_key, 0, -1)
-        
         if len(queue) < 2:
             return await inter.response.send_message("❌ Слишком мало треков в очереди для перемешивания!", ephemeral=True)
-        
         random.shuffle(queue)
-        
         async with self.player.redis.pipeline(transaction=True) as pipe:
             await pipe.delete(self.player.queue_key)
             await pipe.rpush(self.player.queue_key, *queue)
             await pipe.execute()
-            
         await inter.response.send_message("🔀 Очередь успешно перемешана!", ephemeral=True)
 
     @disnake.ui.button(emoji="🔁", style=disnake.ButtonStyle.secondary, row=1)
@@ -61,10 +61,7 @@ class MusicPlayerView(disnake.ui.View):
     @disnake.ui.button(emoji="🛸", style=disnake.ButtonStyle.secondary, row=1)
     async def autopilot_btn(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
         self.player.autopilot = not self.player.autopilot
-        
         button.style = disnake.ButtonStyle.success if self.player.autopilot else disnake.ButtonStyle.secondary
-        
         status = "включена" if self.player.autopilot else "выключена"
-        
         await self.player.update_player_ui(self.player.current)
-        await inter.response.send_message(f"🛸 Моя волна {status}. Бот будет подбирать похожие треки, когда очередь закончится!", ephemeral=True)
+        await inter.response.send_message(f"🛸 Моя волна {status}!", ephemeral=True)

@@ -5,6 +5,7 @@ from config import Config
 
 async def clear_redis():
     r = redis.from_url(Config.REDIS_URL, decode_responses=True)
+    await r.flushall()
     await r.flushdb()
     print("Redis успешно очищен.")
     await r.close()
