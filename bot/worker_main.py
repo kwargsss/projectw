@@ -48,28 +48,101 @@ class WorkerBot(commands.Bot):
 
                 try:
                     track_name = f"{event.track.author} - {event.track.title}"[:200]
+                    
                     await self.redis.zincrby(f"music_top:guild:{player.guild.id}", 1, track_name)
+                    
                     if player.channel:
                         for member in player.channel.members:
                             if not member.bot:
                                 await self.redis.zincrby(f"music_top:user:{member.id}", 1, track_name)
                 except Exception as e:
-                    self.logger.error(f"[STATS ERROR] {e}")
+                    self.logger.error(f"[STATS ERROR] Ошибка записи статистики: {e}")
 
             next_track = await player.play_next(finished_track=event.track)
+            
             if next_track:
                 player.cancel_timeout()
-                await player.update_player_ui(next_track)
+                await player.send_ui_update(next_track)
             else:
                 if player.autopilot and ("FINISHED" in reason or "STOPPED" in reason):
                     ap_track = await player.play_autopilot(event.track)
                     if ap_track:
                         player.cancel_timeout()
-                        await player.update_player_ui(ap_track)
+                        await player.send_ui_update(ap_track)
                         return
 
-                await player.update_player_ui(None)
+                await player.send_ui_update(None)
                 player.timeout_task = self.loop.create_task(player.start_timeout(300))
+
+    async def listen_to_redis(self):
+        pubsub = self.redis.pubsub()
+        await pubsub.subscribe(f"worker_cmd:{self.worker_id}")
+        import random
+        
+        async for message in pubsub.listen():
+            if message['type'] == 'message':
+                data = json.loads(message['data'])
+                action = data.get("action")
+                guild_id = data.get("guild_id")
+                guild = self.get_guild(guild_id)
+                if not guild: continue
+
+                if action == "connect_and_play":
+                    voice_channel = guild.get_channel(data["voice_channel_id"])
+                    
+                    player = guild.voice_client
+                    if not player:
+                        try:
+                            player = await voice_channel.connect(cls=CustomPlayer)
+                            await guild.change_voice_state(channel=voice_channel, self_deaf=True)
+                        except Exception as e:
+                            self.logger.error(f"[WORKER ERROR] Ошибка входа: {e}")
+                            await self.redis.delete(f"vc_worker:{voice_channel.id}")
+                            await self.redis.srem(f"guild_active_workers:{guild_id}", self.worker_id)
+                            continue
+                    
+                    if not player.current:
+                        track = await player.play_next()
+                        if track: await player.send_ui_update(track)
+                
+                else:
+                    player: CustomPlayer = guild.voice_client
+                    if not player: continue
+
+                    if action == "pause_resume":
+                        if player.paused:
+                            await player.resume()
+                        else:
+                            await player.pause()
+                        if player.current:
+                            await player.send_ui_update(player.current)
+                    
+                    elif action == "skip":
+                        await player.stop()
+                    
+                    elif action == "previous":
+                        track = await player.play_previous()
+                        if track: await player.send_ui_update(track)
+                    
+                    elif action == "stop":
+                        await player.teardown()
+                    
+                    elif action == "toggle_loop":
+                        player.loop_mode = (player.loop_mode + 1) % 3
+                        await player.send_ui_update(player.current)
+                    
+                    elif action == "toggle_autopilot":
+                        player.autopilot = not player.autopilot
+                        await player.send_ui_update(player.current)
+                        
+                    elif action == "shuffle":
+                        queue = await self.redis.lrange(player.queue_key, 0, -1)
+                        if len(queue) > 1:
+                            random.shuffle(queue)
+                            async with self.redis.pipeline(transaction=True) as pipe:
+                                await pipe.delete(player.queue_key)
+                                await pipe.rpush(player.queue_key, *queue)
+                                await pipe.execute()
 
     async def on_voice_state_update(self, member, before, after):
         player = getattr(member.guild, "voice_client", None)
@@ -84,49 +157,11 @@ class WorkerBot(commands.Bot):
             if not non_bots:
                 player.cancel_timeout()
                 player.timeout_task = self.loop.create_task(player.start_timeout(60))
-                if player.text_channel:
-                    try: await player.text_channel.send("В канале никого нет. Уйду через 1 минуту 💤", delete_after=60)
-                    except: pass
             else:
                 if player.timeout_task:
                     player.cancel_timeout()
                     if not player.current:
                         player.timeout_task = self.loop.create_task(player.start_timeout(300))
-
-    async def listen_to_redis(self):
-        pubsub = self.redis.pubsub()
-        await pubsub.subscribe(f"worker_cmd:{self.worker_id}")
-        
-        async for message in pubsub.listen():
-            if message['type'] == 'message':
-                data = json.loads(message['data'])
-                action = data.get("action")
-                guild_id = data.get("guild_id")
-                guild = self.get_guild(guild_id)
-                if not guild: continue
-
-                if action == "connect_and_play":
-                    voice_channel = guild.get_channel(data["voice_channel_id"])
-                    text_channel = guild.get_channel(data["text_channel_id"])
-                    
-                    player = guild.voice_client
-                    if not player:
-                        try:
-                            player = await voice_channel.connect(cls=CustomPlayer)
-                            await guild.change_voice_state(channel=voice_channel, self_deaf=True)
-                        except Exception as e:
-                            self.logger.error(f"[WORKER ERROR] Ошибка входа в канал: {e}")
-                            await self.redis.delete(f"vc_worker:{voice_channel.id}")
-                            await self.redis.srem(f"guild_active_workers:{guild_id}", self.worker_id)
-                            if text_channel:
-                                try: await text_channel.send(f"❌ Мне не удалось зайти в {voice_channel.mention} (проверьте права).")
-                                except: pass
-                            continue
-                    
-                    player.text_channel = text_channel
-                    if not player.current:
-                        track = await player.play_next()
-                        if track: await player.update_player_ui(track)
 
 def run_worker_process(worker_id: str, token: str):
     bot = WorkerBot(worker_id=worker_id)

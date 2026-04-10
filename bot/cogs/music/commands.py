@@ -98,6 +98,14 @@ class MusicCommands(commands.Cog):
             "voice_channel_id": voice_channel_id,
             "text_channel_id": inter.channel.id
         }
+
+        await self.bot.redis.set(f"vc_text_channel:{voice_channel_id}", inter.channel.id)
+
+        payload = {
+            "action": "connect_and_play",
+            "guild_id": inter.guild.id,
+            "voice_channel_id": voice_channel_id,
+        }
         await self.bot.redis.publish(f"worker_cmd:{worker_id}", json.dumps(payload))
 
         await inter.edit_original_response(f"✅ Успешно! Передал {track_msg} музыкальному боту.")

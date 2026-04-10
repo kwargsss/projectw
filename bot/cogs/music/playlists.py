@@ -3,11 +3,8 @@ import json
 import mafic
 import redis.exceptions
 import asyncio
-import traceback
-import mafic
 
 from disnake.ext import commands
-from core.player import CustomPlayer
 
 
 BLACKLIST_WORDS = ["remix", "cover", "bass boost", "slowed", "reverb", "tribute", "karaoke", "караоке", "ремикс", "кавер"]
@@ -23,11 +20,6 @@ class MusicPlaylists(commands.Cog):
         self.bot.loop.create_task(self.web_music_listener())
 
     async def web_music_listener(self):
-        import redis.exceptions
-        import asyncio
-        import json
-        import mafic
-
         await self.bot.wait_until_ready()
         
         while True:
@@ -52,18 +44,14 @@ class MusicPlaylists(commands.Cog):
 
                             if action == "add_track":
                                 query = data["query"]
-                                if await self.bot.redis.llen(tracks_key) >= 50:
-                                    continue
-                                    
-                                if not getattr(self.bot, 'pool', None) or not self.bot.pool.nodes:
-                                    continue
+                                if await self.bot.redis.llen(tracks_key) >= 50: continue
+                                if not getattr(self.bot, 'pool', None) or not self.bot.pool.nodes: continue
                                     
                                 node = self.bot.pool.nodes[0]
                                 tracks, fallback_track = None, None
                                 
                                 if query.startswith("http://") or query.startswith("https://"):
-                                    try: 
-                                        tracks = await node.fetch_tracks(query, search_type="ytsearch")
+                                    try: tracks = await node.fetch_tracks(query)
                                     except: pass
                                 else:
                                     for s_type in ["ymsearch", "ytsearch", "vksearch"]:
@@ -86,7 +74,8 @@ class MusicPlaylists(commands.Cog):
                                     
                                 if tracks:
                                     track = tracks.tracks[0] if isinstance(tracks, mafic.Playlist) else tracks[0]
-                                    track_data = {"title": track.title, "author": track.author, "url": track.uri, "source": track.source}
+                                    source_name = track.source if hasattr(track, 'source') else "unknown"
+                                    track_data = {"title": track.title, "author": track.author, "url": track.uri, "source": source_name}
                                     await self.bot.redis.rpush(tracks_key, json.dumps(track_data))
 
                             elif action == "import_playlist":
@@ -94,40 +83,35 @@ class MusicPlaylists(commands.Cog):
                                 current_count = await self.bot.redis.llen(tracks_key)
                                 available_slots = 50 - current_count
                                 
-                                if available_slots <= 0:
-                                    continue
+                                if available_slots <= 0: continue
 
                                 node = self.bot.pool.nodes[0]
                                 try:
                                     clean_url = url.split("?")[0]
-                                    result = await node.fetch_tracks(clean_url, search_type="ytsearch")
+                                    result = await node.fetch_tracks(clean_url)
                                     
-                                    if not result:
-                                        continue
+                                    if not result: continue
 
-                                    if isinstance(result, mafic.Playlist):
-                                        tracks_to_add = result.tracks
-                                    elif isinstance(result, list):
-                                        tracks_to_add = result
-                                    else:
-                                        tracks_to_add = [result]
+                                    if isinstance(result, mafic.Playlist): tracks_to_add = result.tracks
+                                    elif isinstance(result, list): tracks_to_add = result
+                                    else: tracks_to_add = [result]
 
                                     tracks_to_add = tracks_to_add[:available_slots]
                                     
                                     async with self.bot.redis.pipeline(transaction=True) as pipe:
                                         for track in tracks_to_add:
-                                            t_data = {"title": track.title, "author": track.author, "url": track.uri, "source": track.source}
+                                            source_name = track.source if hasattr(track, 'source') else "unknown"
+                                            t_data = {"title": track.title, "author": track.author, "url": track.uri, "source": source_name}
                                             pipe.rpush(tracks_key, json.dumps(t_data))
                                         await pipe.execute()
                                 except: pass
 
                         except: pass
                     
-                    await pubsub.ping()
+                    await asyncio.sleep(0.01)
                             
             except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError):
                 await asyncio.sleep(5)
-                
             except Exception:
                 await asyncio.sleep(5)
 
@@ -154,8 +138,9 @@ class MusicPlaylists(commands.Cog):
 
         embed = disnake.Embed(title="📁 Ваши плейлисты", description=f"Лимит: {len(playlists)}/2", color=0x2b2d31)
         for pl in playlists:
-            count = await self.bot.redis.llen(f"playlist_tracks:{user_id}:{pl}")
-            embed.add_field(name=f"🎵 {pl}", value=f"Треков: {count}/50", inline=False)
+            pl_name = pl.decode('utf-8') if isinstance(pl, bytes) else pl
+            count = await self.bot.redis.llen(f"playlist_tracks:{user_id}:{pl_name}")
+            embed.add_field(name=f"🎵 {pl_name}", value=f"Треков: {count}/50", inline=False)
 
         await inter.edit_original_response(embed=embed)
 
@@ -210,12 +195,11 @@ class MusicPlaylists(commands.Cog):
         if track_count >= 50:
             return await inter.edit_original_response(f"❌ Плейлист **{playlist}** заполнен! (50/50 треков).")
 
-        player = getattr(inter.guild, "voice_client", None)
-        node = player if player else self.bot.pool.nodes[0]
+        node = self.bot.pool.nodes[0]
         tracks, fallback_track = None, None
 
         if query.startswith("http://") or query.startswith("https://"):
-            try: tracks = await node.fetch_tracks(query, search_type="ytsearch")
+            try: tracks = await node.fetch_tracks(query)
             except: pass
         else:
             for s_type in ["ymsearch", "ytsearch", "vksearch"]:
@@ -240,10 +224,10 @@ class MusicPlaylists(commands.Cog):
 
         track = tracks.tracks[0] if isinstance(tracks, mafic.Playlist) else tracks[0]
 
-        track_data = {"title": track.title, "author": track.author, "url": track.uri, "source": track.source}
+        source_name = track.source if hasattr(track, 'source') else "unknown"
+        track_data = {"title": track.title, "author": track.author, "url": track.uri, "source": source_name}
         await self.bot.redis.rpush(tracks_key, json.dumps(track_data))
 
-        # Изменено отображение лимита
         await inter.edit_original_response(f"✅ Трек **{track.author} - {track.title}** сохранен в **{playlist}** ({track_count + 1}/50)!")
 
     @playlist_group.sub_command(name="импорт", description="Импортировать плейлист из Яндекса/ВК/Spotify/YouTube по ссылке")
@@ -258,21 +242,17 @@ class MusicPlaylists(commands.Cog):
         tracks_key = f"playlist_tracks:{user_id}:{playlist}"
 
         exists = await self.bot.redis.sismember(set_key, playlist)
-        if not exists:
-            return await inter.edit_original_response(f"❌ Плейлист **{playlist}** не найден.")
+        if not exists: return await inter.edit_original_response(f"❌ Плейлист **{playlist}** не найден.")
 
         current_count = await self.bot.redis.llen(tracks_key)
-        # Увеличено доступное количество слотов до 50
         available_slots = 50 - current_count
-        if available_slots <= 0:
-            return await inter.edit_original_response(f"❌ Ваш плейлист **{playlist}** уже полностью заполнен (50/50).")
+        if available_slots <= 0: return await inter.edit_original_response(f"❌ Ваш плейлист **{playlist}** уже полностью заполнен (50/50).")
 
         clean_url = url.split("?")[0]
-        player = getattr(inter.guild, "voice_client", None)
-        node = player if player else self.bot.pool.nodes[0]
+        node = self.bot.pool.nodes[0]
         
         try:
-            result = await node.fetch_tracks(clean_url, search_type="ytsearch")
+            result = await node.fetch_tracks(clean_url)
         except Exception as e:
             return await inter.edit_original_response(f"❌ Ошибка площадки. Убедитесь, что плейлист публичный.\n*(Техническая ошибка: {e})*")
 
@@ -294,7 +274,8 @@ class MusicPlaylists(commands.Cog):
 
         async with self.bot.redis.pipeline(transaction=True) as pipe:
             for track in tracks_to_add:
-                track_data = {"title": track.title, "author": track.author, "url": track.uri, "source": track.source}
+                s_name = track.source if hasattr(track, 'source') else "unknown"
+                track_data = {"title": track.title, "author": track.author, "url": track.uri, "source": s_name}
                 pipe.rpush(tracks_key, json.dumps(track_data))
             await pipe.execute()
 
@@ -366,7 +347,7 @@ class MusicPlaylists(commands.Cog):
         for track_json in raw_tracks:
             try:
                 data = json.loads(track_json)
-                resolved_tracks = await node.fetch_tracks(data["url"], search_type="ytsearch")
+                resolved_tracks = await node.fetch_tracks(data["url"])
                 if resolved_tracks:
                     track = resolved_tracks[0] if isinstance(resolved_tracks, list) else resolved_tracks
                     await self.bot.redis.rpush(queue_key, track.id)
@@ -378,11 +359,12 @@ class MusicPlaylists(commands.Cog):
             await self.bot.redis.srem(f"guild_active_workers:{inter.guild.id}", worker_id)
             return await inter.edit_original_response("❌ Не удалось загрузить ни один трек.")
 
+        await self.bot.redis.set(f"vc_text_channel:{voice_channel_id}", inter.channel.id)
+
         payload = {
             "action": "connect_and_play",
             "guild_id": inter.guild.id,
-            "voice_channel_id": voice_channel_id,
-            "text_channel_id": inter.channel.id
+            "voice_channel_id": voice_channel_id
         }
         await self.bot.redis.publish(f"worker_cmd:{worker_id}", json.dumps(payload))
 

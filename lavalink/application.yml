@@ -11,7 +11,7 @@ lavalink:
       repository: "https://maven.lavalink.dev/releases"
       
   server:
-    password: "youshallnotpass"
+    password: "CGoj0UWAp8LmFk46ipgKMZ05tePyYHSQ"
     sources:
       youtube: false
       bandcamp: true
